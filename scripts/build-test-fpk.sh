@@ -9,6 +9,7 @@ trap 'rm -rf -- "$TEST_STAGE"' EXIT
 
 cd "$PROJECT_DIR"
 node --test tests/*.test.js
+python3 scripts/render-icon.py
 
 mkdir -p "$TEST_STAGE/app/server" "$TEST_STAGE/app/ui/images" "$TEST_STAGE/wizard" "$TEST_STAGE/cmd" "$TEST_STAGE/config" "$PROJECT_DIR/dist"
 cp -R app/lib app/ui "$TEST_STAGE/app/server/"
