@@ -1,0 +1,14 @@
+{
+  ".url": {
+    "fn-dit.main": {
+      "title": "飞牛 DIT",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "protocol": "",
+      "gatewayPrefix": "/app/fn-dit",
+      "gatewaySocket": "app.sock",
+      "url": "/app/fn-dit/",
+      "allUsers": false
+    }
+  }
+}
