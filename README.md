@@ -38,7 +38,7 @@ Photos/
 
 详见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 
-1. 在开发电脑准备 Node.js 22+ 及官方 `fnpack`。
+1. 在开发电脑准备 Node.js 22+、Python 3（安装 `Pillow`：`python3 -m pip install Pillow`）及官方 `fnpack`。
 2. 执行 `npm test`，通过后运行 `bash scripts/build-fpk.sh` 使用官方 fnpack 构建。
 3. 在飞牛应用中心手动安装生成的 FPK，确认 `Node.js v22` 依赖与权限。
 4. 在飞牛文件管理创建目标目录，给应用授权。
@@ -56,9 +56,9 @@ DIT_DEV=1 DIT_DATA_DIR=/tmp/fn-dit-test node app/server.js
 
 管理页面（本机开发模式）：http://127.0.0.1:17681/app/fn-dit/ 。
 
-2026-11-20：Node.js v22.16.0 环境运行 `npm test`，8 项测试通过。**单元/集成测试不等于 fnOS 安装验收。**
+2026-11-20：Node.js v22.16.0 环境运行 `npm test`，8 项测试通过；GitHub Actions 也会在每次推送时进行测试。**单元/集成测试不等于 fnOS 安装验收。**
 
-## 设计与限制
+## 构建产物\n\nGitHub 仓库保留可重复构建的源码与图标生成脚本，未将未经实机验证的实验性 `.fpk` 设为正式 Release。`scripts/render-icon.py` 会在构建时生成 fnOS 所需 PNG 图标。\n\n## 设计与限制
 
 - 不修改系统级 USB 规则、不自行挂载磁盘；fnOS 必须先识别并挂载设备。
 - 常驻 Node.js 后台服务以轮询识别存储卡，不是硬件插入事件直接通知。
