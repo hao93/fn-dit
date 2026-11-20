@@ -62,6 +62,9 @@ with tempfile.TemporaryDirectory(prefix='fn-dit-smoke-') as tmp:
         assert code == 200 and b'id="choose-destination"' in page and b'id="destination" type="hidden"' in page
         for asset in ('directory-picker.mjs','vendor/trim-web-app.mjs','folder-callback.html','folder-callback.mjs'):
             assert request(asset,admin)[0] == 200, asset
+        code, mounts=request('api/mounts',admin)
+        assert code == 200 and isinstance(json.loads(mounts)['devices'],list) and json.loads(mounts)['message']
+        assert request('api/source/add',{**admin,'X-Dit-Request':'1'},'POST',json.dumps({'source':'/etc'}))[0] == 400
         payload=json.dumps({'destination':'/etc'})
         assert request('api/destination/check',admin,'POST',payload)[0] == 403
         assert request('api/destination/check',{**admin,'X-Dit-Request':'1'},'POST',payload)[0] == 400

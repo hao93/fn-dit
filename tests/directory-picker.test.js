@@ -101,3 +101,20 @@ test('expired or unrelated authorization callbacks cannot change settings',async
   assert.equal(matchesRequest({...result,appName:'other'},pending,101),false);
   assert.equal(matchesRequest({...result,method:'pickUserFile'},pending,101),false);
 });
+test('source picker opens external storage and cannot replace the archive target',async()=>{
+  const {createDirectoryPicker}=await loaded;
+  const f=fixture({result:{code:0,data:['/vol00/SD_Card_Reader']}});
+  const selected=[];f.config.onSelect=(value,purpose)=>selected.push({value,purpose});
+  await createDirectoryPicker(f.config).choose('source');
+  assert.deepEqual(f.events[0][1].sidebarGroup,['external']);
+  assert.deepEqual(selected,[{value:'/vol00/SD_Card_Reader',purpose:'source'}]);
+});
+test('standalone source callback retains its source purpose',async()=>{
+  const {createDirectoryPicker,RESULT_PREFIX}=await loaded;const f=fixture({standalone:true});
+  const selected=[];f.config.onSelect=(value,purpose)=>selected.push({value,purpose});
+  const picker=createDirectoryPicker(f.config);await picker.choose('source');
+  f.browser.localStorage.setItem(RESULT_PREFIX+'test-random-state',JSON.stringify({
+    status:'success',appName:'fn-dit',method:'pickSharedFile',state:'test-random-state',path:['/vol00/SD_Card_Reader/DCIM']}));
+  await picker.refreshResult();
+  assert.deepEqual(selected,[{value:'/vol00/SD_Card_Reader/DCIM',purpose:'source'}]);
+});

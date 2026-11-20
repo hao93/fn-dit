@@ -1,5 +1,5 @@
 appname               = fn-dit
-version               = 0.1.2
+version               = 0.1.3
 display_name          = 飞牛 DIT
 desc                  = 自动识别外接相机存储卡，安全校验、增量去重、按拍摄日期整理照片视频。
 platform              = all
@@ -15,4 +15,4 @@ install_dep_apps      = nodejs_v22
 disable_authorization_path = false
 ctl_stop              = true
 checkport             = false
-changelog             = 归档目标改为飞牛原生目录弹窗选择与授权，无需填写路径；保留原有配置。
+changelog             = 修复外接存储识别过严与读取失败无提示；增加原生弹窗选择存储卡，保留目标目录选择功能。

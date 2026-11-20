@@ -12,7 +12,7 @@
 <aside class="nav">
 <div class="brand"><div class="brand-icon">◈</div><div><b>飞牛 DIT</b><small>Family Media Ingest</small></div></div>
 <div class="nav-link selected">▦ <span>素材导入</span></div>
-<div class="nav-bottom">本地运行 · 安全复制<br><span>v0.1.2 Test</span></div>
+<div class="nav-bottom">本地运行 · 安全复制<br><span>v0.1.3 Test</span></div>
 </aside>
 <main>
 <header><div><div class="eyebrow">照片归档工作台 / PHOTO WORKFLOW</div><h1>让每次拍摄，都有条不紊。</h1><p class="sub">插卡、识别、校验、归档。原始照片始终保留在存储卡上。</p></div><div class="header-status"><span class="live-dot"></span><span id="status-label">正在连接</span></div></header>
@@ -45,7 +45,11 @@
 <p id="message" class="message" role="status"></p>
 </section>
 <div class="column">
-<section class="panel"><div class="panel-top"><div><div class="eyebrow">02 / 外接设备</div><h2>当前检测到的设备</h2></div><button id="refresh" class="icon-button" title="刷新">↻</button></div><div id="devices" class="devices"><div class="empty"><div class="empty-icon">▤</div><strong>等待插入存储卡</strong><p>USB 读卡器 / 移动硬盘 / U 盘</p></div></div></section>
+<section class="panel"><div class="panel-top"><div><div class="eyebrow">02 / 外接设备</div><h2>当前检测到的设备</h2></div><button id="refresh" class="icon-button" title="刷新设备" aria-label="刷新设备">↻</button></div>
+<div class="source-actions"><button type="button" id="choose-source" class="secondary folder-button" disabled>选择存储卡</button><small>飞牛已识别但这里没有？点此选择并授权读取。</small></div>
+<div id="devices" class="devices"><div class="empty"><div class="empty-icon">▤</div><strong>正在检查外接存储</strong><p>USB 读卡器 / SD 卡 / U 盘</p></div></div>
+<p id="device-message" class="device-message" role="status"></p>
+<details class="device-help"><summary>飞牛能看到卡，但仍提示没有读取权限？</summary><p>先在「系统设置 → 应用 → 飞牛 DIT」中授权这张卡的目录。若仍不可读，请检查「文件管理 → 设置 → 外接存储权限」是否仅限当前账号。改为「所有账号可见」会扩大到其他 NAS 账号，请按你的共享需求决定。软件不会自动修改此设置。</p></details></section>
 <section class="panel">
 <div class="panel-top"><div><div class="eyebrow">03 / 工作状态</div><h2>校验与导入状态</h2></div><span class="pill" id="pill">待机</span></div>
 <div class="progress"><div class="progress-inner" id="progress"></div></div>

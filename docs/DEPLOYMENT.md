@@ -1,14 +1,14 @@
 # 飞牛 fnOS 部署说明
 
-当前为 **v0.1.2 试装版**。使用官方 fnpack 1.3.3 在 Linux 构建并检查 FPK；未完成 fnOS 实机验收。
+当前为 **v0.1.3 试装版**。使用官方 fnpack 1.3.3 在 Linux 构建并检查 FPK；未完成 fnOS 实机验收。
 
 ## 安装试装包
 
-1. 从仓库 Actions 中最近一次成功的 Tests 运行下载 `fn-dit-0.1.2-unsigned-test` 构建产物，解压 ZIP，选择其中的 `.fpk`。不要上传 ZIP 或 APK。
+1. 从仓库 Actions 中最近一次成功的 Tests 运行下载 `fn-dit-0.1.3-unsigned-test` 构建产物，解压 ZIP，选择其中的 `.fpk`。不要上传 ZIP 或 APK。
 2. 需要 fnOS **1.2.0401 或以上**，以及应用中心的 **Node.js v22**。用户报告的 1.2.1010 满足声明的系统版本要求，但尚未实测。
 3. 应用中心 → 手动安装 → 上传 FPK。此包使用官方 `--nosign`，仅供本地调试，未签名，不是正式 Release。如果设备策略拒绝未签名包，需要飞牛开发者证书构建；不要关闭系统安全检查来绕过。
-4. 使用管理员账户点击「选择文件夹」，在飞牛原生弹窗中逐层选择 NAS 内部目录并确认授权。飞牛 App 客户端需要 1.34.0 或以上。外接卡来源仍在应用设置中授权只读。
-5. 确认页面显示选中的文件夹后，点击「保存配置」。目标目录无需输入或复制路径。旧版已保存的目录会继续保留；点击「更换文件夹」可重新选择。手动来源仍用于自动识别失败的外接设备。
+4. 使用管理员账户点击「选择文件夹」，在飞牛原生弹窗中逐层选择 NAS 内部目录并确认授权。飞牛 App 客户端需要 1.34.0 或以上。外接设备区域新增「选择存储卡」，可在系统外接存储弹窗中选择并授权 SD 卡根目录或 DCIM。
+5. 确认页面显示选中的文件夹后，点击「保存配置」。目标目录无需输入或复制路径。旧版已保存的目录会继续保留；点击「更换文件夹」可重新选择。存储卡选择完成后来源自动保存；目标目录配置仍需点击「保存配置」。
 6. 自动导入默认关闭。先用少量测试卡文件手动扫描，核对内容、日期、同名冲突、重复导入和拔插后重扫，再决定开启自动导入。
 
 ## Linux 源码构建
@@ -19,9 +19,9 @@
 # 官方工具下载地址与本次核验 SHA-256 见 .github/workflows/tests.yml
 export FNPACK=/absolute/path/to/fnpack
 bash scripts/build-test-fpk.sh
-# 产物：dist/fn-dit-0.1.2-unsigned-test.fpk、.sha256、.audit.json
-python3 tests/fpk_test.py dist/fn-dit-0.1.2-unsigned-test.fpk
-python3 tests/lifecycle-smoke.py dist/fn-dit-0.1.2-unsigned-test.fpk
+# 产物：dist/fn-dit-0.1.3-unsigned-test.fpk、.sha256、.audit.json
+python3 tests/fpk_test.py dist/fn-dit-0.1.3-unsigned-test.fpk
+python3 tests/lifecycle-smoke.py dist/fn-dit-0.1.3-unsigned-test.fpk
 ```
 
 正式签名构建：在构建主机按官方 `fnpack cert import --help` 导入自己的开发者证书，然后执行 `bash scripts/build-fpk.sh`。不要把私钥、证书或密码提交到仓库。本项目不会生成或伪造开发者身份。

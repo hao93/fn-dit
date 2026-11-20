@@ -48,14 +48,16 @@
     const container=el('devices');
     container.replaceChildren();
     if(!sources.length) {
-      container.innerHTML='<div class="empty"><div class="empty-icon">▤</div><strong>等待插入存储卡</strong><p>可识别含 DCIM 目录的 USB / SD 卡</p></div>';
+      container.innerHTML='<div class="empty"><div class="empty-icon">▤</div><strong>尚未发现可读取的存储卡</strong><p>可点击「选择存储卡」，选择 SD_Card_Reader 或 DCIM 并授权。</p></div>';
       return;
     }
     for(const source of sources) {
       const device=document.createElement('div');device.className='device';
+      if(source.state&&source.state!=='ready') device.classList.add('device-warning');
       const title=document.createElement('strong');title.textContent='▣  '+source.path.split('/').filter(Boolean).at(-1);
       const detail=document.createElement('small');detail.textContent=`${source.origin} · ${source.path}`;
       device.append(title,detail);container.append(device);
+      if(source.message) {const message=document.createElement('span');message.className='device-detail';message.textContent=source.message;device.append(message);}
     }
   }
   function render(result) {
@@ -72,6 +74,7 @@
     el('current').textContent=s.current||s.lastError||'暂无任务';
     el('last-run').textContent=s.lastRun?new Date(s.lastRun).toLocaleString('zh-CN'):'尚未扫描';
     showSources(s.devices||[]);
+    el('device-message').textContent=s.deviceMessage||'';
     const logs=el('logs');logs.replaceChildren();
     for(const line of result.logs||[]) {const div=document.createElement('div');div.textContent=line;logs.append(div);}
     if(!logs.children.length) logs.textContent='尚无导入日志。';
@@ -84,31 +87,52 @@
       ]);
       const sdk=new TrimApp();
       picker=createDirectoryPicker({sdk,
-        verify:async(destination)=>(await request('/api/destination/check','POST',{destination})).destination,
-        onSelect:(destination)=>{editing=true;showDestination(destination);},
+        verify:async(value,purpose)=>{
+          if(purpose==='source') {
+            const result=await request('/api/source/add','POST',{source:value});
+            showSources(result.devices||[]);el('device-message').textContent=result.message;
+            return result.source;
+          }
+          return (await request('/api/destination/check','POST',{destination:value})).destination;
+        },
+        onSelect:(value,purpose)=>{
+          editing=true;
+          if(purpose==='source') {
+            const sources=new Set(el('sources').value.split('\n').map(v=>v.trim()).filter(Boolean));
+            sources.add(value);el('sources').value=[...sources].join('\n');
+          } else showDestination(value);
+        },
         onNotice:setNotice,
         onBusy:(busy)=>{
           if(busy) editing=true;
           el('choose-destination').disabled=busy;
+          el('choose-source').disabled=busy;
           el('save').disabled=busy;
           el('refresh-selection').hidden=!(busy&&sdk.isStandaloneWeb);
         }
       });
       await picker.ready();
       // ready() may have resumed a pending authorization tab.
-      if(el('refresh-selection').hidden) el('choose-destination').disabled=false;
+      if(el('refresh-selection').hidden) {el('choose-destination').disabled=false;el('choose-source').disabled=false;}
     } catch(error) {
       el('choose-destination').disabled=true;
+      el('choose-source').disabled=true;
       setNotice(error.message||'目录选择器连接失败，请从飞牛客户端重新打开应用。',true);
     }
   }
   el('choose-destination').addEventListener('click',()=>{void picker?.choose();});
+  el('choose-source').addEventListener('click',()=>{void picker?.choose('source');});
   el('refresh-selection').addEventListener('click',async()=>{
     if(!await picker?.refreshResult()) setNotice('尚未收到选择结果，请先在飞牛弹窗中确认授权。');
   });
   document.querySelectorAll('.settings input,.settings select,.settings textarea').forEach(field=>field.addEventListener('input',()=>{editing=true;}));
   el('save').addEventListener('click',async()=>{try{const result=await request('/api/settings','POST',settings());editing=false;populate(result.config);setNotice('设置已保存。建议先点击「立即扫描一次」测试。');await refresh();}catch(error){setNotice(error.message,true);}});
   el('run').addEventListener('click',async()=>{try{await request('/api/import-now','POST');setNotice('已请求扫描，请查看右侧状态和运行日志。');setTimeout(refresh,400);}catch(error){setNotice(error.message,true);}});
-  el('refresh').addEventListener('click',async()=>{await refresh();try{const m=await request('/api/mounts');showSources(m.sources||[]);}catch(error){setNotice(error.message,true);}});
+  el('refresh').addEventListener('click',async()=>{
+    el('refresh').disabled=true;el('device-message').textContent='正在检查挂载设备与读取权限…';
+    try {const report=await request('/api/mounts');showSources(report.devices||[]);el('device-message').textContent=report.message;}
+    catch(error){el('device-message').textContent='检查失败：'+error.message;}
+    finally{el('refresh').disabled=false;}
+  });
   refresh();initPicker();setInterval(refresh,2500);
 })();

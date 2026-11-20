@@ -11,9 +11,10 @@ export function matchesRequest(result,pending,now=Date.now()) {
     ['success','cancel','error'].includes(result.status));
 }
 
-export function singleFolder(paths) {
-  if(!Array.isArray(paths)||paths.length!==1||typeof paths[0]!=='string'||!/^\/vol[1-9]\d*\/.+/.test(paths[0])||paths[0].includes('\0')) {
-    throw new Error('请选择一个 NAS 内部文件夹作为归档目标。');
+export function singleFolder(paths,purpose='destination') {
+  const allowed=purpose==='source'?/^\/(vol0\d+|media|run\/media|mnt\/usb)(\/|$)/:/^\/vol[1-9]\d*\/.+/;
+  if(!Array.isArray(paths)||paths.length!==1||typeof paths[0]!=='string'||!allowed.test(paths[0])||paths[0].includes('\0')) {
+    throw new Error(purpose==='source'?'请在外接存储中选择存储卡根目录或 DCIM 文件夹。':'请选择一个 NAS 内部文件夹作为归档目标。');
   }
   return paths[0];
 }
@@ -29,18 +30,18 @@ export function createDirectoryPicker({sdk,verify,onSelect,onNotice,onBusy=()=>{
     pending=null;popup=null;finishing=false;
     browser.clearInterval(watcher);watcher=null;setBusy(false);
   }
-  async function select(paths) {
-    const path=singleFolder(paths);
-    const checked=await verify(path);
-    onSelect(checked);
-    onNotice('已选择归档文件夹，请点击「保存配置」。');
+  async function select(paths,purpose='destination') {
+    const path=singleFolder(paths,purpose);
+    const checked=await verify(path,purpose);
+    onSelect(checked,purpose);
+    onNotice(purpose==='source'?'存储卡已添加并通过读取检查，可以点击「立即扫描一次」。':'已选择归档文件夹，请点击「保存配置」。');
   }
   async function accept(result) {
     if(finishing||!matchesRequest(result,pending)) return false;
     finishing=true;
     try {
-      if(result.status==='success') await select(result.path);
-      else if(result.status==='cancel') onNotice('已取消选择，原归档目录保持不变。');
+      if(result.status==='success') await select(result.path,pending.purpose||'destination');
+      else if(result.status==='cancel') onNotice('已取消选择，原有配置保持不变。');
       else throw new Error('目录授权未完成，请使用 NAS 管理员账户重新选择。');
     } catch(error) {onNotice(error.message,true);}
     finally {finish();}
@@ -58,7 +59,7 @@ export function createDirectoryPicker({sdk,verify,onSelect,onNotice,onBusy=()=>{
       if(await refreshResult()) return;
       if(!pending) return;
       if(Date.now()-pending.createdAt>=MAX_AGE || popup?.closed) {
-        onNotice(popup?.closed?'已关闭选择窗口，原归档目录保持不变。':'选择已超时，请重新选择文件夹。');
+        onNotice(popup?.closed?'已关闭选择窗口，原有配置保持不变。':'选择已超时，请重新选择文件夹。');
         finish();
       }
     },500);
@@ -82,28 +83,28 @@ export function createDirectoryPicker({sdk,verify,onSelect,onNotice,onBusy=()=>{
       } finally {browser.clearTimeout(timer);}
       if(pending) {setBusy(true);watch();await refreshResult();}
     },
-    async choose() {
+    async choose(purpose='destination') {
       if(busy) return;
       setBusy(true);
       try {
         if(!sdk.isStandaloneWeb) {
-          const result=await sdk.pickSharedFile({title:'选择归档目标文件夹',okText:'选择并授权',multiple:false,sidebarGroup:groups});
+          const result=await sdk.pickSharedFile({title:purpose==='source'?'选择相机存储卡':'选择归档目标文件夹',okText:'选择并授权',multiple:false,sidebarGroup:purpose==='source'?['external']:groups});
           if(result==null||(result.code===0&&Array.isArray(result.data)&&result.data.length===0)) {
-            onNotice('已取消选择，原归档目录保持不变。');
+            onNotice('已取消选择，原有配置保持不变。');
           } else {
             if(result.code!==0) throw new Error(result.msg||'目录授权失败，请使用 NAS 管理员账户重新选择。');
-            await select(result.data);
+            await select(result.data,purpose);
           }
           setBusy(false);
           return;
         }
         // Open synchronously during the click, before the SDK builds its URL.
-        pending={state:browser.crypto.randomUUID(),createdAt:Date.now()};
+        pending={state:browser.crypto.randomUUID(),createdAt:Date.now(),purpose};
         session.setItem(PENDING_KEY,JSON.stringify(pending));
         popup=browser.open('','_blank','width=800,height=680');
         if(!popup) throw new Error('浏览器拦截了选择窗口，请允许弹窗后重试。');
         const url=await sdk.buildAppAuthUrl('pickSharedFile',{
-          appName:'fn-dit',sidebarGroup:groups,
+          appName:'fn-dit',sidebarGroup:purpose==='source'?['external']:groups,
           redirectUri:'/app/fn-dit/folder-callback.html',state:pending.state
         });
         popup.location.replace(url);

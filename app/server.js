@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
-const {discoverSources} = require('./lib/discovery');
+const {inspectSources,externalPath,checkSourceRoot} = require('./lib/discovery');
 const {Importer} = require('./lib/importer');
 
 const BASE = '/app/fn-dit';
@@ -29,7 +29,7 @@ let config;
 try { config = {...defaults,...JSON.parse(fs.readFileSync(configFile,'utf8'))}; }
 catch { config={...defaults}; }
 
-const status = {busy:false,startedAt:null,lastRun:null,lastError:'',lastSummary:{imported:0,duplicate:0,pending:0,failed:0},current:'',devices:[]};
+const status = {busy:false,startedAt:null,lastRun:null,lastError:'',lastSummary:{imported:0,duplicate:0,pending:0,failed:0},current:'',devices:[],deviceMessage:''};
 const recentLogs=[];
 function log(message) {
   const line = `${new Date().toISOString()} ${message}`;
@@ -80,8 +80,13 @@ function validateSettings(input) {
   if (!Number.isInteger(next.settleSeconds)||next.settleSeconds<5||next.settleSeconds>3600) throw new Error('稳定等待需在 5-3600 秒内');
   try { new Intl.DateTimeFormat('en',{timeZone:next.timezone}); } catch { throw new Error('时区名称无效'); }
   for (const root of next.sourceRoots) {
-    if (!path.isAbsolute(root) || !/^\/(vol0\d+|media|run\/media|mnt\/usb)(\/|$)/.test(path.resolve(root))) throw new Error('手动来源必须位于外接存储目录：/vol00、/vol02、/media 或 /mnt/usb');
-    if (!fs.existsSync(root)||!fs.statSync(root).isDirectory()) throw new Error(`手动来源不存在或没有读取权限：${root}`);
+    if (!externalPath(root)) throw new Error('来源必须是已选择的外接存储目录。');
+    try {
+      if(!externalPath(fs.realpathSync(root))) throw new Error('存储卡来源不能指向内部存储。');
+    } catch(error) {
+      // Saved removable sources survive unplugging; discovery reports their state.
+      if(!['ENOENT','EACCES','EPERM'].includes(error.code)) throw error;
+    }
   }
   if (next.destination) {
     const previous=config; config=next;
@@ -111,11 +116,13 @@ async function scan(force=false) {
   status.current='';
   const summary={imported:0,duplicate:0,pending:0,failed:0};
   try {
-    const roots=discoverSources(runConfig,{auto:runConfig.autoDiscover});
-    status.devices=roots;
+    const report=inspectSources(runConfig,{auto:runConfig.autoDiscover});
+    const roots=report.sources;
+    status.devices=report.devices;
+    status.deviceMessage=report.message;
     const active=new Set(roots.map(root=>root.path));
     for (const old of completedSources) if (!active.has(old)) completedSources.delete(old);
-    if (!roots.length) {status.current='没有发现含 DCIM 的授权外接存储';return;}
+    if (!roots.length) {status.lastError=report.message;log(report.message);return;}
     if (!runConfig.destination) throw new Error('请先设置目标目录');
     const dest=authorizedDestination(runConfig.destination);
     for (const root of roots) {
@@ -169,8 +176,10 @@ async function handle(req,res) {
   if (req.method==='GET' && tail==='/api/status') {
     if (!status.busy) {
       try {
-        status.devices=discoverSources(config,{auto:config.autoDiscover});
-        const active=new Set(status.devices.map(root=>root.path));
+        const report=inspectSources(config,{auto:config.autoDiscover});
+        status.devices=report.devices;
+        status.deviceMessage=report.message;
+        const active=new Set(report.sources.map(root=>root.path));
         for (const old of completedSources) if (!active.has(old)) completedSources.delete(old);
       }
       catch { /* device is being inserted or unmounted */ }
@@ -178,13 +187,27 @@ async function handle(req,res) {
     json(res,{status,config,logs:recentLogs.slice(-60)});return;
   }
   if (req.method==='GET' && tail==='/api/mounts') {
-    try {json(res,{sources:discoverSources(config,{auto:config.autoDiscover})});}
+    try {
+      const report=inspectSources(config,{auto:config.autoDiscover});
+      status.devices=report.devices;status.deviceMessage=report.message;
+      json(res,report);
+    }
     catch (error) {json(res,{error:error.message},500);}
     return;
   }
   if (req.method==='POST') {
     if (req.headers['x-dit-request'] !== '1') {json(res,{error:'缺少请求标识'},403);return;}
     try {
+      if (tail==='/api/source/add') {
+        const input=await bodyJSON(req);
+        const source=checkSourceRoot(input?.source);
+        const sourceRoots=[...new Set([...config.sourceRoots,source])];
+        if(sourceRoots.length>20) throw new Error('最多保存 20 个存储卡来源。');
+        saveConfig({...config,sourceRoots});
+        const report=inspectSources(config,{auto:config.autoDiscover});
+        status.devices=report.devices;status.deviceMessage=report.message;
+        json(res,{source,...report});return;
+      }
       if (tail==='/api/destination/check') {
         const input=await bodyJSON(req);
         const destination=authorizedDestination(input?.destination);
