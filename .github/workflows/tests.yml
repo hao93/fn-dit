@@ -1,0 +1,21 @@
+name: Tests
+on:
+  push:
+  pull_request:
+jobs:
+  node-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run regression tests
+        run: npm test
+      - name: Check JavaScript syntax
+        run: |
+          node --check app/server.js
+          node --check app/lib/discovery.js
+          node --check app/lib/importer.js
+          node --check app/lib/metadata.js
+          node --check app/ui/app.js
