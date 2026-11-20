@@ -1,64 +1,47 @@
 # 飞牛 fnOS 部署说明
 
-> **v0.1.0 测试版**：仅完成本地 Node.js 测试，官方 fnpack 校验与飞牛实机安装尚未完成。先使用可丢弃的测试样本验证。
+当前为 **v0.1.1 试装版**。使用官方 fnpack 1.3.3 在 Linux 构建并检查 FPK；未完成 fnOS 实机验收。
 
-## 1. 准备
+## 安装试装包
 
-- 飞牛 NAS 与 fnOS，能正常识别 USB 存储设备或 SD 读卡器。
-- NAS 内部存储上创建一个照片归档目录（例如 `Photos`）。
-- 在 fnOS 文件管理确认内部真实路径，通常类似 `/vol1/1000/Photos`，以实际显示为准。不要填写 Windows SMB 路径。
-- 在开发电脑准备 Node.js 22+、bash、以及官方 fnpack 工具。
+1. 从仓库 Actions 中最近一次成功的 Tests 运行下载 `fn-dit-0.1.1-unsigned-test` 构建产物，解压 ZIP，选择其中的 `.fpk`。不要上传 ZIP 或 APK。
+2. 需要 fnOS **1.1.3100 或以上**，以及应用中心的 **Node.js v22**。用户报告的 1.2.1010 满足声明的系统版本要求，但尚未实测。
+3. 应用中心 → 手动安装 → 上传 FPK。此包使用官方 `--nosign`，仅供本地调试，未签名，不是正式 Release。如果设备策略拒绝未签名包，需要飞牛开发者证书构建；不要关闭系统安全检查来绕过。
+4. 在应用设置中为 `fn_dit` 应用账户授权：外接卡来源只读，NAS 内部目标目录读写。软件不会自动申请 root 或向所有目录授予权限。
+5. 管理员打开应用，填写实际内部路径，例如 `/vol1/1000/Photos`。手动来源填写设备实际外接挂载目录；应用不会自行挂载 USB。
+6. 自动导入默认关闭。先用少量测试卡文件手动扫描，核对内容、日期、同名冲突、重复导入和拔插后重扫，再决定开启自动导入。
 
-## 2. 从源码生成 FPK（推荐）
+## Linux 源码构建
+
+需要 Node.js 22+、Python 3.12+、bash、官方 fnpack 1.3.3。图标 PNG 已提交，无需构建时下载 Python 图片依赖。
 
 ```bash
-npm test
-bash scripts/build-fpk.sh
+# 官方工具下载地址与本次核验 SHA-256 见 .github/workflows/tests.yml
+export FNPACK=/absolute/path/to/fnpack
+bash scripts/build-test-fpk.sh
+# 产物：dist/fn-dit-0.1.1-unsigned-test.fpk、.sha256、.audit.json
+python3 tests/fpk_test.py dist/fn-dit-0.1.1-unsigned-test.fpk
+python3 tests/lifecycle-smoke.py dist/fn-dit-0.1.1-unsigned-test.fpk
 ```
 
-脚本会检查必要项目文件、运行测试并调用 `fnpack build`。实际产物路径请查看终端输出。
+正式签名构建：在构建主机按官方 `fnpack cert import --help` 导入自己的开发者证书，然后执行 `bash scripts/build-fpk.sh`。不要把私钥、证书或密码提交到仓库。本项目不会生成或伪造开发者身份。
 
-若没有 fnpack，可执行 `bash scripts/build-test-fpk.sh` 生成实验性测试 FPK；该方法**不能替代**官方校验。
+构建必须使用 Linux。Windows fnpack 1.3.3 在本次环境构建时报文件同步 Access is denied；1.2.3 虽能输出 FPK，但脚本模式为 0666，不能作为本项目安装产物交付。不要重新压缩已生成的 FPK。
 
-## 3. 应用安装与权限
+## 安装仍失败时
 
-1. 打开 fnOS「应用中心」中的手动安装入口，上传 FPK。
-2. 若提示缺少 Node.js v22 依赖，在支持的版本中安装或根据 fnOS 提示处理。
-3. 打开「飞牛 DIT」管理页面。
-4. 依照 fnOS 当前版本的权限授权界面，授予应用需要的**外接存储只读访问**和**目标目录读写访问**。
-5. fnOS 有可能使用 `/vol00`、`/vol02` 等路径挂载外接存储。若自动识别失败，请在文件管理查看实际挂载路径，填进额外来源目录。
+“应用包不符合系统要求”是通用错误，仅凭截图无法断定系统内的具体校验分支。当前修复移除了手工打包流程，并校验官方包的结构、权限、图标、配置与 app.tgz MD5；这不能替代应用中心实际安装。
 
-**注意**：普通原生应用能否读取 USB 挂载路径依赖 fnOS 应用沙箱、权限以及设备实际挂载结构。这部分必须实机验证；程序不会绕过权限、使用 root 或修改系统 udev。
+若新包仍被拒绝，记录完整 fnOS 版本、所选 FPK 文件名、文件 SHA-256 和应用中心/安装日志，重点检查未签名包策略及 Node.js 依赖。设备有 SSH 且管理员自愿使用命令行时，可参考官方 `appcenter-cli install-fpk <完整FPK路径>`；本任务未连接 NAS 或执行安装。
 
-## 4. 首次导入（先不要开启自动扫描）
+启动失败时查看应用数据目录中的 `service.log`。启动脚本会在服务退出或 Socket 未就绪时返回失败，并通过系统临时日志给出错误。
 
-1. 插入只包含少量 JPG、RAF、MOV 样本的测试卡。
-2. 在设置中指定目标归档目录并保存。
-3. 确认自动导入处于关闭状态，点击「立即扫描」。
-4. 检查日志、目标文件个数、日期分组、文件内容是否完整。
-5. 拔出并重新插入，验证重复素材被跳过。
-6. 再复制一张与现有文件同名但内容不同的测试文件，验证不会覆盖原文件。
-7. 完成验收后才开启自动导入。
+## 运行限制
 
-## 5. 归档格式和注意事项
+- 统一网关、外接卡挂载结构与 ACL 授权必须在真机核验。
+- 服务以专用包账户运行，默认不暴露 TCP 管理端口，仅允许 NAS 管理员使用。
+- 原卡不删除、不格式化；目标同名不同内容不覆盖。索引和日志存储于 `TRIM_PKGVAR`。
+- 拍摄日期解析不到时回退 mtime；部分 RAW/HEIC/视频格式需要 ExifTool，并应抽样核对。
+- 不提供“亮灯画面”识别功能，不替代独立备份。
 
-```text
-<目标目录>/YYYY/YYYY-MM-DD/RAW|JPG|VIDEO|OTHER/<原文件名>
-```
-
-- RAW 和 JPG 均保留，不合并。
-- 拍摄时间优先于文件修改时间；不能解析时会退回 mtime 并记录日志。
-- 拷贝过程会写临时文件，完成后重新计算 SHA-256 并提交；如果复制失败则保留原卡数据。
-- 自动导入默认关闭，且不会删除或格式化原卡。
-
-## 6. 常见问题
-
-**插卡后应用无响应？** 检查 fnOS 是否挂载了设备、应用是否有读取权限、是否存在 `DCIM`，必要时添加额外来源目录。
-
-**提示目录无权写入？** 检查目标路径是否为 NAS 内部有效目录，以及应用运行账户是否拥有读写权限。
-
-**部分照片被分到错误日期？** 使用 ExifTool 读取原始元数据核实；没有可解析拍摄时间时程序会按 mtime 分类。
-
-**拷贝中途拔卡或网络异常？** 检查错误日志后重新插卡/重新扫描，未成功提交的文件会重新处理。对中断文件的恢复方式是重新处理，不承诺分块续传。
-
-**能否直接用于唯一一份珍贵照片？** 不建议。先备份原卡，验证后再正式使用；本应用不是独立备份系统。
+依据：[官方 fnpack](https://developer.fnnas.com/docs/cli/fnpack)、[Native 案例](https://developer.fnnas.com/docs/examples/native)、[Manifest](https://developer.fnnas.com/docs/core-concepts/manifest)、[应用权限](https://developer.fnnas.com/docs/core-concepts/privilege)。

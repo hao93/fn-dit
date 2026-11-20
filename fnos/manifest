@@ -1,10 +1,11 @@
 appname               = fn-dit
-version               = 0.1.0
+version               = 0.1.1
 display_name          = 飞牛 DIT
 desc                  = 自动识别外接相机存储卡，安全校验、增量去重、按拍摄日期整理照片视频。
 platform              = all
 source                = thirdparty
 maintainer            = Home Photographer
+maintainer_url        = https://github.com/hao93/fn-dit
 distributor           = Home Photographer
 os_min_version        = 1.1.3100
 desktop_uidir         = ui
@@ -13,3 +14,4 @@ install_dep_apps      = nodejs_v22
 disable_authorization_path = false
 ctl_stop              = true
 checkport             = false
+changelog             = 使用官方 fnpack 构建，补齐生命周期脚本并验证包结构、校验值、图标和执行权限；尚未完成 NAS 实机验收。
