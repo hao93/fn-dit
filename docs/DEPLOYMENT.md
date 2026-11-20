@@ -1,10 +1,10 @@
 # 飞牛 fnOS 部署说明
 
-当前为 **v0.1.4 试装版**。使用官方 fnpack 1.3.3 在 Linux 构建并检查 FPK；未完成 fnOS 实机验收。
+当前为 **v0.1.5 试装版**。使用官方 fnpack 1.3.3 在 Linux 构建并检查 FPK；未完成 fnOS 实机验收。
 
 ## 安装试装包
 
-1. 从仓库 Actions 中最近一次成功的 Tests 运行下载 `fn-dit-0.1.4-unsigned-test` 构建产物，解压 ZIP，选择其中的 `.fpk`。不要上传 ZIP 或 APK。
+1. 从仓库 Actions 中最近一次成功的 Tests 运行下载 `fn-dit-0.1.5-unsigned-test` 构建产物，解压 ZIP，选择其中的 `.fpk`。不要上传 ZIP 或 APK。
 2. 需要 fnOS **1.2.0401 或以上**，以及应用中心的 **Node.js v22**。用户报告的 1.2.1010 满足声明的系统版本要求，但尚未实测。
 3. 应用中心 → 手动安装 → 上传 FPK。此包使用官方 `--nosign`，仅供本地调试，未签名，不是正式 Release。如果设备策略拒绝未签名包，需要飞牛开发者证书构建；不要关闭系统安全检查来绕过。
 4. 使用管理员账户点击「选择文件夹」，在飞牛原生弹窗中逐层选择 NAS 内部目录并确认授权。飞牛 App 客户端需要 1.34.0 或以上。外接设备区域新增「选择存储卡」，可在系统外接存储弹窗中选择并授权 SD 卡根目录或 DCIM。
@@ -19,9 +19,9 @@
 # 官方工具下载地址与本次核验 SHA-256 见 .github/workflows/tests.yml
 export FNPACK=/absolute/path/to/fnpack
 bash scripts/build-test-fpk.sh
-# 产物：dist/fn-dit-0.1.4-unsigned-test.fpk、.sha256、.audit.json
-python3 tests/fpk_test.py dist/fn-dit-0.1.4-unsigned-test.fpk
-python3 tests/lifecycle-smoke.py dist/fn-dit-0.1.4-unsigned-test.fpk
+# 产物：dist/fn-dit-0.1.5-unsigned-test.fpk、.sha256、.audit.json
+python3 tests/fpk_test.py dist/fn-dit-0.1.5-unsigned-test.fpk
+python3 tests/lifecycle-smoke.py dist/fn-dit-0.1.5-unsigned-test.fpk
 ```
 
 正式签名构建：在构建主机按官方 `fnpack cert import --help` 导入自己的开发者证书，然后执行 `bash scripts/build-fpk.sh`。不要把私钥、证书或密码提交到仓库。本项目不会生成或伪造开发者身份。

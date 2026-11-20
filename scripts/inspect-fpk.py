@@ -55,6 +55,8 @@ def validate(files, modes, dirs, app):
     for key, value in expected.items():
         require(manifest.get(key) == value, f'manifest mismatch: {key}')
     require(manifest['version'] == json.loads((ROOT / 'package.json').read_text())['version'], 'version mismatch')
+    require(manifest.get('maintainer')=='fancy' and manifest.get('distributor')=='fancy', 'developer/publisher must be fancy')
+    require(app.get('server/ui/icon.png')==files['ICON_256.PNG'], 'web/app icon mismatch')
     privilege = json.loads(files['config/privilege'])
     require(privilege == json.loads((ROOT / 'fnos/config/privilege').read_text()), 'unexpected privilege configuration')
     require(privilege['defaults']['run-as'] == 'package', 'must use dedicated package user')

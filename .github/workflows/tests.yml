@@ -22,6 +22,8 @@ jobs:
           node --check app/lib/importer.js
           node --check app/lib/stability.js
           node --check app/lib/time.js
+          node --check app/lib/history.js
+          node --check app/lib/schedule.js
           node --check app/lib/metadata.js
           node --check app/ui/app.js
           node --check app/ui/directory-picker.mjs
@@ -48,12 +50,12 @@ jobs:
         run: FNPACK="$RUNNER_TEMP/fnpack" bash scripts/build-fpk.sh
       - name: Reject corrupt packages and smoke test packaged service
         run: |
-          python3 tests/fpk_test.py dist/fn-dit-0.1.4-unsigned-test.fpk
-          python3 tests/lifecycle-smoke.py dist/fn-dit-0.1.4-unsigned-test.fpk
+          python3 tests/fpk_test.py dist/fn-dit-0.1.5-unsigned-test.fpk
+          python3 tests/lifecycle-smoke.py dist/fn-dit-0.1.5-unsigned-test.fpk
       - name: Upload local-test package and audit (not a signed release)
         uses: actions/upload-artifact@v4
         with:
-          name: fn-dit-0.1.4-unsigned-test
+          name: fn-dit-0.1.5-unsigned-test
           path: dist/*
           if-no-files-found: error
           retention-days: 30

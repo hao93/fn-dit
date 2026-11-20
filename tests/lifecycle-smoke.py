@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 
 
 class UnixHTTP(http.client.HTTPConnection):
@@ -28,6 +29,9 @@ with tempfile.TemporaryDirectory(prefix='fn-dit-smoke-') as tmp:
     with tarfile.open(fileobj=io.BytesIO((root / 'app.tgz').read_bytes()), mode='r:gz') as inner:
         inner.extractall(target, filter='data')
     state = root / 'state'
+    state.mkdir()
+    fixture_config={'enabled':False,'destination':'/vol1/smoke-test','autoDiscover':False,'sourceRoots':[],'intervalSeconds':30}
+    (state / 'config.json').write_text(json.dumps(fixture_config))
     env = {**os.environ, 'TRIM_APPDEST': str(target), 'TRIM_PKGVAR': str(state),
            'TRIM_TEMP_LOGFILE': str(root / 'error.log')}
     env.pop('DIT_DEV', None)
@@ -69,10 +73,39 @@ with tempfile.TemporaryDirectory(prefix='fn-dit-smoke-') as tmp:
         payload=json.dumps({'destination':'/etc'})
         assert request('api/destination/check',admin,'POST',payload)[0] == 403
         assert request('api/destination/check',{**admin,'X-Dit-Request':'1'},'POST',payload)[0] == 400
+        assert json.loads(request('api/status',admin)[1])['status']['nextScanAt'] is None
+        assert b'id="next-run"' in page and b'id="history-rows"' in page
+        assert request('icon.png',admin)[0] == 200
+        assert request('api/history')[0] == 403
+        assert request('api/import-now',{**admin,'X-Dit-Request':'1'},'POST','{}')[0] == 200
+        deadline=time.monotonic()+5
+        while True:
+            records=json.loads(request('api/history',admin)[1])['runs']
+            if records and records[0]['state']!='running':
+                break
+            assert time.monotonic()<deadline, 'manual scan history did not finish'
+            time.sleep(0.05)
+        run_id=records[0]['id']
+        assert records[0]['trigger']=='manual'
+        detail=json.loads(request('api/history/'+run_id,admin)[1])
+        assert detail['lines'] and 'UTC+8' in detail['lines'][0]
+        assert request('api/history/'+run_id+'/download',admin)[0] == 200
+        assert request('api/history/not-an-id',admin)[0] == 404
+        assert request('api/logs/download',admin)[0] == 200
     finally:
         ctl('stop')
     ctl('status', 3)
     assert not sock.exists() and not (state / 'fn-dit.pid').exists()
+    ctl('start')
+    assert json.loads(request('api/history',admin)[1])['runs'][0]['id']==run_id, 'history lost on restart'
+    ctl('stop')
+    fixture_config['enabled']=True
+    (state / 'config.json').write_text(json.dumps(fixture_config))
+    ctl('start')
+    time.sleep(1.3)
+    scheduled=json.loads(request('api/status',admin)[1])['status']
+    assert scheduled['nextScanAt'] and not scheduled['busy'], 'automatic scan did not schedule its next run'
+    ctl('stop')
     # A broken service must fail startup visibly instead of returning success.
     (target / 'server/server.js').write_text('throw new Error("smoke-test failure");\n')
     ctl('start', 1)

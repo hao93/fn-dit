@@ -4,6 +4,8 @@
   const el=(id)=>document.getElementById(id);
   let editing=false;
   let picker;
+  let historyOffset=0,historyHasMore=false,lastHistoryRun=null,detailId=null,detailOffset=0;
+  const displayTime=value=>value?new Date(value).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hourCycle:'h23'}):'—';
   function showDestination(value) {
     el('destination').value=value||'';
     el('destination-name').textContent=value?value.split('/').filter(Boolean).at(-1):'尚未选择归档文件夹';
@@ -72,7 +74,12 @@
     el('pill').className='pill'+(s.busy?' running':'');
     el('progress').className='progress-inner'+(s.busy?' running':'');
     el('current').textContent=s.current||s.lastError||'暂无任务';
-    el('last-run').textContent=s.lastRun?new Date(s.lastRun).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hourCycle:'h23'}):'尚未扫描';
+    el('last-run').textContent=s.lastRun?displayTime(s.lastRun):'尚未扫描';
+    el('next-run').textContent=!result.config.enabled?'自动导入未开启':s.busy?'本轮完成后安排':s.nextScanAt?displayTime(s.nextScanAt):'正在安排';
+    if(s.historyError) el('history-notice').textContent=s.historyError;
+    if(s.latestRunId&&s.latestRunId!==lastHistoryRun&&!s.busy) {
+      lastHistoryRun=s.latestRunId;if(historyOffset===0) void refreshHistory(0);
+    }
     showSources(s.devices||[]);
     el('device-message').textContent=s.deviceMessage||'';
     const logs=el('logs');logs.replaceChildren();
@@ -80,6 +87,50 @@
     if(!logs.children.length) logs.textContent='尚无导入日志。';
   }
   async function refresh() {try {render(await request('/api/status'));}catch(error){el('status-label').textContent='服务不可用';setNotice(error.message,true);}}
+  async function refreshHistory(offset=historyOffset) {
+    el('refresh-history').disabled=true;
+    try {
+      const result=await request('/api/history?offset='+offset+'&limit=20');
+      historyOffset=result.offset;historyHasMore=result.hasMore;
+      const body=el('history-rows');body.replaceChildren();
+      const labels={running:'进行中',completed:'完成',waiting:'等待稳定',failed:'有错误',interrupted:'已中断'};
+      for(const run of result.runs) {
+        const tr=document.createElement('tr');
+        for(const value of [displayTime(run.startedAt),run.trigger==='manual'?'手动':'自动',run.summary.imported,run.summary.duplicate,run.summary.pending,run.summary.failed,labels[run.state]||run.state]) {
+          const td=document.createElement('td');td.textContent=String(value);tr.append(td);
+        }
+        const td=document.createElement('td'),button=document.createElement('button');
+        button.className='selection-refresh';button.textContent='查看日志';button.addEventListener('click',()=>{void openHistory(run.id);});td.append(button);tr.append(td);body.append(tr);
+      }
+      if(!result.runs.length) {const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=8;td.className='history-empty';td.textContent='尚无导入历史，扫描后会自动记录。';tr.append(td);body.append(tr);}
+      el('history-page').textContent=`共 ${result.total} 轮记录 · 第 ${Math.floor(historyOffset/20)+1} 页`;
+      el('history-prev').disabled=historyOffset===0;el('history-next').disabled=!historyHasMore;
+    } catch(error) {el('history-notice').textContent='历史记录读取失败：'+error.message;}
+    finally {el('refresh-history').disabled=false;}
+  }
+  async function openHistory(id,more=false) {
+    if(!more) {
+      detailId=id;detailOffset=0;el('history-detail').textContent='正在读取日志…';
+      el('history-summary').textContent='';el('history-more').hidden=true;el('download-run').removeAttribute('href');
+      if(!el('history-dialog').open) el('history-dialog').showModal();
+    }
+    el('history-more').disabled=true;
+    try {
+      const result=await request('/api/history/'+encodeURIComponent(id)+'?offset='+detailOffset+'&limit=200');
+      if(detailId!==id) return;
+      const r=result.run,s=r.summary;
+      el('history-summary').textContent=`${displayTime(r.startedAt)}\n来源：${r.sources.join('、')||'未发现来源'}\n目标：${r.destination||'未配置'}\n新增 ${s.imported} · 重复 ${s.duplicate} · 待稳定 ${s.pending} · 失败 ${s.failed}${r.error?'\n'+r.error:''}`;
+      el('history-detail').textContent=(more?el('history-detail').textContent+'\n':'')+result.lines.join('\n');
+      detailOffset=result.nextOffset;el('history-more').hidden=!result.hasMore;
+      el('download-run').href=base+'/api/history/'+encodeURIComponent(id)+'/download';
+    } catch(error) {el('history-detail').textContent='日志读取失败：'+error.message;}
+    finally {el('history-more').disabled=false;}
+  }
+  el('refresh-history').addEventListener('click',()=>{void refreshHistory();});
+  el('history-prev').addEventListener('click',()=>{void refreshHistory(Math.max(0,historyOffset-20));});
+  el('history-next').addEventListener('click',()=>{if(historyHasMore) void refreshHistory(historyOffset+20);});
+  el('close-history').addEventListener('click',()=>el('history-dialog').close());
+  el('history-more').addEventListener('click',()=>{if(detailId) void openHistory(detailId,true);});
   async function initPicker() {
     try {
       const [{TrimApp},{createDirectoryPicker}]=await Promise.all([
@@ -134,5 +185,5 @@
     catch(error){el('device-message').textContent='检查失败：'+error.message;}
     finally{el('refresh').disabled=false;}
   });
-  refresh();initPicker();setInterval(refresh,2500);
+  refresh();initPicker();refreshHistory(0);setInterval(refresh,2500);
 })();

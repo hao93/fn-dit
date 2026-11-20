@@ -86,7 +86,7 @@ class Importer {
       return {kind:'pending',reason:'校验期间文件发生变化',remainingSeconds:config.settleSeconds};
     }
     const previous = await this.duplicateTarget(hash);
-    if (previous) return {kind:'duplicate',target:previous};
+    if (previous) {this.log(`跳过重复：${source} → ${previous}`);return {kind:'duplicate',target:previous};}
     const date = photographedDate(source, after, config.timezone);
     const subdir = config.folderMode === 'date_flat' ? '' : categoryFor(source);
     const folder = path.join(config.destination, date.date.slice(0,4), date.date, subdir);
@@ -100,6 +100,7 @@ class Importer {
       try {
         if ((await sha256(target)) === hash) {
           await this.appendIndex(hash,target,source);
+          this.log(`跳过重复：${source} → ${target}`);
           return {kind:'duplicate',target};
         }
         continue;

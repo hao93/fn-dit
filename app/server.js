@@ -6,6 +6,8 @@ const http = require('node:http');
 const {inspectSources,externalPath,checkSourceRoot} = require('./lib/discovery');
 const {Importer} = require('./lib/importer');
 const {east8Time}=require('./lib/time');
+const {ScanSchedule}=require('./lib/schedule');
+const {RunHistory}=require('./lib/history');
 
 const BASE = '/app/fn-dit';
 const DEV = process.env.DIT_DEV === '1';
@@ -30,7 +32,9 @@ let config;
 try { config = {...defaults,...JSON.parse(fs.readFileSync(configFile,'utf8'))}; }
 catch { config={...defaults}; }
 
-const status = {busy:false,phase:'idle',startedAt:null,lastRun:null,lastError:'',lastSummary:{imported:0,duplicate:0,pending:0,failed:0},current:'',devices:[],deviceMessage:''};
+const status = {busy:false,phase:'idle',startedAt:null,lastRun:null,nextScanAt:null,lastError:'',historyError:'',latestRunId:null,lastSummary:{imported:0,duplicate:0,pending:0,failed:0},current:'',devices:[],deviceMessage:''};
+const history=new RunHistory(dataDir);
+let activeRun=null,stopping=false;
 const recentLogs=[];
 function log(message) {
   const line = `${east8Time()} ${message}`;
@@ -38,10 +42,18 @@ function log(message) {
   if (recentLogs.length>100) recentLogs.shift();
   try { fs.appendFileSync(logFile,line+'\n',{mode:0o600}); }
   catch (error) { console.error('log write failed:',error.message); }
+  if(activeRun) {
+    try {history.append(activeRun.id,line);}
+    catch {status.historyError='本轮详细日志保存失败，请检查应用数据存储空间。';}
+  }
   console.log(line);
 }
 const importer = new Importer(dataDir,log);
-let lastAutoScan = 0;
+const schedule=new ScanSchedule(()=>{void scan(false).catch(error=>log(error.message));});
+function scheduleNext(delay=config.intervalSeconds*1000) {
+  schedule.cancel();status.nextScanAt=null;
+  if(config.enabled&&!status.busy&&!stopping) status.nextScanAt=schedule.schedule(delay);
+}
 const completedSources = new Set();
 
 function legalDestination(folder) {
@@ -104,6 +116,7 @@ function saveConfig(next) {
   if (config.destination !== next.destination || config.folderMode !== next.folderMode) completedSources.clear();
   config=next;
   if(!status.busy) Object.assign(status,runState(status.lastSummary,status.lastError,config.enabled));
+  scheduleNext();
 }
 
 function runState(summary,error,enabled) {
@@ -117,16 +130,21 @@ function runState(summary,error,enabled) {
 async function scan(force=false) {
   if (status.busy) return;
   if (!force && !config.enabled) return;
-  if (!force && Date.now()-lastAutoScan < config.intervalSeconds*1000) return;
-  if (!force) lastAutoScan=Date.now();
+  schedule.cancel();status.nextScanAt=null;
   const runConfig={...config,sourceRoots:[...config.sourceRoots]};
   status.busy=true;
   status.phase='scanning';
   status.startedAt=new Date().toISOString();
   status.lastError='';
+  status.historyError='';
   status.current='';
   const summary={imported:0,duplicate:0,pending:0,failed:0};
+  function beginHistory(sources=[]) {
+    activeRun=history.begin({trigger:force?'manual':'auto',destination:runConfig.destination,sources});
+    status.latestRunId=activeRun.id;
+  }
   try {
+    if(force) beginHistory(runConfig.sourceRoots);
     const report=inspectSources(runConfig,{auto:runConfig.autoDiscover});
     const roots=report.sources;
     status.devices=report.devices;
@@ -134,6 +152,9 @@ async function scan(force=false) {
     const active=new Set(roots.map(root=>root.path));
     for (const old of completedSources) if (!active.has(old)) completedSources.delete(old);
     if (!roots.length) {status.lastError=report.message;log(report.message);return;}
+    const eligibleRoots=roots.filter(root=>force||!completedSources.has(root.path));
+    if(!activeRun&&eligibleRoots.length) beginHistory(eligibleRoots.map(root=>root.path));
+    if(activeRun) {activeRun.sources=eligibleRoots.map(root=>root.path);history.save(activeRun);}
     if (!runConfig.destination) throw new Error('请先设置目标目录');
     const dest=authorizedDestination(runConfig.destination);
     for (const root of roots) {
@@ -142,14 +163,27 @@ async function scan(force=false) {
         log(`跳过不安全来源（与目标目录重叠）: ${root.path}`); continue;
       }
       status.current=root.path;
-      const stats=await importer.scanSource(root,{...runConfig,destination:dest},values=>{status.current=`${root.path}：${values.current}`;});
+      const stats=await importer.scanSource(root,{...runConfig,destination:dest},values=>{
+        status.current=`${root.path}：${values.current}`;
+        if(activeRun) {
+          const live=Object.fromEntries(Object.keys(summary).map(key=>[key,summary[key]+values[key]]));
+          try {history.progress(activeRun,live);}
+          catch {status.historyError='运行数量保存失败，请检查应用数据存储空间。';}
+        }
+      });
       for (const key of Object.keys(summary)) summary[key]+=stats[key];
       if (stats.pending === 0 && stats.failed === 0) completedSources.add(root.path);
     }
   } catch (error) {status.lastError=error.message;log(`扫描异常：${error.message}`);}
   finally {
     status.lastSummary=summary;status.lastRun=new Date().toISOString();status.busy=false;
+    if(activeRun) {
+      try {history.finish(activeRun,summary,status.lastError);}
+      catch {status.historyError='本轮记录未能完整保存，请检查应用数据存储空间。';}
+      activeRun=null;
+    }
     Object.assign(status,runState(summary,status.lastError,config.enabled));
+    scheduleNext();
   }
 }
 
@@ -176,17 +210,39 @@ const files = {
   '/directory-picker.mjs':['directory-picker.mjs','text/javascript; charset=utf-8'],
   '/vendor/trim-web-app.mjs':['vendor/trim-web-app.mjs','text/javascript; charset=utf-8'],
   '/folder-callback.html':['folder-callback.html','text/html; charset=utf-8'],
-  '/folder-callback.mjs':['folder-callback.mjs','text/javascript; charset=utf-8']
+  '/folder-callback.mjs':['folder-callback.mjs','text/javascript; charset=utf-8'],
+  '/icon.png':['icon.png','image/png']
 };
 
 async function handle(req,res) {
-  let pathname;
-  try { pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname); }
+  let pathname,requestURL;
+  try { requestURL=new URL(req.url,'http://localhost');pathname=decodeURIComponent(requestURL.pathname); }
   catch {json(res,{error:'非法 URL'},400);return;}
   if (!pathname.startsWith(BASE)) {json(res,{error:'未找到页面'},404);return;}
   const tail=pathname.slice(BASE.length)||'/';
   const isAdmin=DEV || ['1','true'].includes(String(req.headers['x-trim-isadmin']||'').toLowerCase());
   if (!isAdmin) {json(res,{error:'需要 NAS 管理员账户'},403);return;}
+  if(req.method==='GET'&&tail==='/api/history') {
+    json(res,history.list(requestURL.searchParams.get('offset'),requestURL.searchParams.get('limit')));return;
+  }
+  if(req.method==='GET'&&tail.startsWith('/api/history/')) {
+    const match=tail.match(/^\/api\/history\/([^/]+)(\/download)?$/);
+    if(!match) {json(res,{error:'未找到运行记录'},404);return;}
+    try {
+      const id=match[1];history.get(id);
+      if(match[2]) {
+        const file=history.file(id,'.log');fs.accessSync(file,fs.constants.R_OK);
+        res.writeHead(200,{'content-type':'text/plain; charset=utf-8','content-disposition':`attachment; filename="fn-dit-${id}.log"`,'cache-control':'no-store'});
+        fs.createReadStream(file).on('error',()=>res.destroy()).pipe(res);
+      } else json(res,await history.detail(id,requestURL.searchParams.get('offset'),requestURL.searchParams.get('limit')));
+    } catch {json(res,{error:'运行记录不存在或无法读取'},404);}
+    return;
+  }
+  if(req.method==='GET'&&tail==='/api/logs/download') {
+    try {fs.accessSync(logFile,fs.constants.R_OK);} catch {json(res,{error:'暂无运行日志'},404);return;}
+    res.writeHead(200,{'content-type':'text/plain; charset=utf-8','content-disposition':'attachment; filename="fn-dit-import.log"','cache-control':'no-store'});
+    fs.createReadStream(logFile).on('error',()=>res.destroy()).pipe(res);return;
+  }
   if (req.method==='GET' && tail==='/api/status') {
     if (!status.busy) {
       try {
@@ -259,10 +315,8 @@ function start() {
     try { if (fs.existsSync(sock)) fs.unlinkSync(sock); } catch { /* service manager owns socket lifecycle */ }
     server.listen(sock,()=>log('正在通过 fnOS 网关服务'));
   }
-  const timer=setInterval(()=>{scan(false).catch(error=>log(error.message));},5000);
-  timer.unref();
-  setTimeout(()=>scan(false),1000).unref();
-  for (const sig of ['SIGTERM','SIGINT']) process.on(sig,()=>{server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),15000).unref();});
+  scheduleNext(1000);
+  for (const sig of ['SIGTERM','SIGINT']) process.on(sig,()=>{stopping=true;schedule.cancel();status.nextScanAt=null;server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),15000).unref();});
 }
 if (require.main===module) start();
 module.exports = {validateSettings,legalDestination,start,runState};
