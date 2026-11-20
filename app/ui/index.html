@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>飞牛 DIT · 自动素材整理</title>
+<link rel="stylesheet" href="/app/fn-dit/styles.css" />
+<script src="/app/fn-dit/app.js" defer></script>
+</head>
+<body>
+<div class="layout">
+<aside class="nav">
+<div class="brand"><div class="brand-icon">◈</div><div><b>飞牛 DIT</b><small>Family Media Ingest</small></div></div>
+<div class="nav-link selected">▦ <span>素材导入</span></div>
+<div class="nav-bottom">本地运行 · 安全复制<br><span>v0.1.0 Test</span></div>
+</aside>
+<main>
+<header><div><div class="eyebrow">照片归档工作台 / PHOTO WORKFLOW</div><h1>让每次拍摄，都有条不紊。</h1><p class="sub">插卡、识别、校验、归档。原始照片始终保留在存储卡上。</p></div><div class="header-status"><span class="live-dot"></span><span id="status-label">正在连接</span></div></header>
+<section class="stats">
+<div class="stat"><span>最近新增</span><strong id="count-imported">—</strong><small>张照片 / 个视频</small></div>
+<div class="stat"><span>已跳过重复</span><strong id="count-duplicate">—</strong><small>基于 SHA-256 内容</small></div>
+<div class="stat"><span>待写入稳定</span><strong id="count-pending">—</strong><small>保护正在保存的文件</small></div>
+<div class="stat"><span>导入错误</span><strong id="count-failed">—</strong><small>失败素材保留原卡</small></div>
+</section>
+<div class="two-col">
+<section class="panel settings">
+<div class="panel-top"><div><div class="eyebrow">01 / 工作流设置</div><h2>自动导入</h2></div><label class="toggle" title="先成功导入一次，再启用自动任务"><input id="enabled" type="checkbox"/><span class="slider"></span></label></div>
+<p class="hint">默认关闭。确认目标目录有效、授权完成后才建议开启。</p>
+<label class="field"><span>归档目标目录 <em>必填</em></span><div class="input-wrap"><span class="field-icon">▣</span><input id="destination" placeholder="例如 /vol1/1000/Photos" autocomplete="off" spellcheck="false"/></div><small>从「飞牛文件管理 → 文件夹详情 → 原始路径」复制，须使用内部存储路径。</small></label>
+<div class="field"><span>分类方式</span><select id="folder-mode"><option value="date_type">年份 / 日期 / RAW・JPG・VIDEO・OTHER</option><option value="date_flat">年份 / 日期（混合存放）</option></select></div>
+<div class="field-row"><label class="field"><span>扫描间隔（秒）</span><input id="interval" type="number" min="5" max="3600"/></label><label class="field"><span>文件稳定等待（秒）</span><input id="settle" type="number" min="5" max="3600"/></label></div>
+<label class="field"><span>日期显示时区</span><input id="timezone" placeholder="Asia/Shanghai"/></label>
+<label class="field"><span>手动增加来源目录 <small>每行一个，可选</small></span><textarea id="sources" rows="3" placeholder="例如 /vol00/USB_CARD"></textarea><small>仅用于 fnOS 未自动识别的外接读卡器；请先在飞牛文件管理中确认设备已挂载。</small></label>
+<label class="checkline"><input id="auto-discover" type="checkbox" checked/> 自动识别 USB / SD 挂载设备</label>
+<div class="buttons"><button type="button" id="save" class="primary">保存配置</button><button type="button" id="run" class="secondary">立即扫描一次 ↗</button></div>
+<p id="message" class="message" role="status"></p>
+</section>
+<div class="column">
+<section class="panel"><div class="panel-top"><div><div class="eyebrow">02 / 外接设备</div><h2>当前检测到的设备</h2></div><button id="refresh" class="icon-button" title="刷新">↻</button></div><div id="devices" class="devices"><div class="empty"><div class="empty-icon">▤</div><strong>等待插入存储卡</strong><p>USB 读卡器 / 移动硬盘 / U 盘</p></div></div></section>
+<section class="panel">
+<div class="panel-top"><div><div class="eyebrow">03 / 工作状态</div><h2>校验与导入状态</h2></div><span class="pill" id="pill">待机</span></div>
+<div class="progress"><div class="progress-inner" id="progress"></div></div>
+<div class="detail-line"><span>当前任务</span><span id="current">暂无任务</span></div>
+<div class="detail-line"><span>上次扫描</span><span id="last-run">尚未扫描</span></div>
+<div class="detail-line"><span>安全策略</span><span class="green">● 原卡只读 / SHA-256 校验</span></div>
+</section></div></div>
+<section class="panel log-panel"><div class="panel-top"><div><div class="eyebrow">04 / SYSTEM LOG</div><h2>最近运行记录</h2></div><span class="small-note">最多显示 60 行</span></div><div id="logs" class="logs"><div>等待连接后台服务...</div></div></section>
+<footer>Designed for home photographers · 不自动删除、不覆盖、不格式化原卡</footer>
+</main></div>
+</body></html>
