@@ -11,6 +11,7 @@ fi
 
 cd "$PROJECT_DIR"
 node --test tests/*.test.js
+python3 scripts/render-icon.py
 mkdir -p "${PROJECT_DIR}/.build"
 if [ ! -d "$STAGE_DIR" ]; then
   (cd "${PROJECT_DIR}/.build" && fnpack create fn-dit)
