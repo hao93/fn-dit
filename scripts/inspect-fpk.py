@@ -58,7 +58,10 @@ def validate(files, modes, dirs, app):
     privilege = json.loads(files['config/privilege'])
     require(privilege == json.loads((ROOT / 'fnos/config/privilege').read_text()), 'unexpected privilege configuration')
     require(privilege['defaults']['run-as'] == 'package', 'must use dedicated package user')
-    require(json.loads(files['config/resource']) == {}, 'unexpected resources or broad grants')
+    require(json.loads(files['config/resource']) == {'api-scope': ['trim.file.sharedAccess']}, 'unexpected resources or broad grants')
+    require(manifest.get('micro_app') == 'true', 'native picker requires micro_app=true')
+    sdk = app.get('server/ui/vendor/trim-web-app.mjs', b'')
+    require(hashlib.sha256(sdk).hexdigest() == '1892689bff4725cc7ad5b2cf2a6a06c408a37b40cd6d5e7ff9e696f74cc27514', 'official SDK integrity mismatch')
     for hook in HOOKS:
         name = f'cmd/{hook}'
         require(name in files, f'missing lifecycle script: {name}')

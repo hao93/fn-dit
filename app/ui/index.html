@@ -12,7 +12,7 @@
 <aside class="nav">
 <div class="brand"><div class="brand-icon">◈</div><div><b>飞牛 DIT</b><small>Family Media Ingest</small></div></div>
 <div class="nav-link selected">▦ <span>素材导入</span></div>
-<div class="nav-bottom">本地运行 · 安全复制<br><span>v0.1.0 Test</span></div>
+<div class="nav-bottom">本地运行 · 安全复制<br><span>v0.1.2 Test</span></div>
 </aside>
 <main>
 <header><div><div class="eyebrow">照片归档工作台 / PHOTO WORKFLOW</div><h1>让每次拍摄，都有条不紊。</h1><p class="sub">插卡、识别、校验、归档。原始照片始终保留在存储卡上。</p></div><div class="header-status"><span class="live-dot"></span><span id="status-label">正在连接</span></div></header>
@@ -26,7 +26,16 @@
 <section class="panel settings">
 <div class="panel-top"><div><div class="eyebrow">01 / 工作流设置</div><h2>自动导入</h2></div><label class="toggle" title="先成功导入一次，再启用自动任务"><input id="enabled" type="checkbox"/><span class="slider"></span></label></div>
 <p class="hint">默认关闭。确认目标目录有效、授权完成后才建议开启。</p>
-<label class="field"><span>归档目标目录 <em>必填</em></span><div class="input-wrap"><span class="field-icon">▣</span><input id="destination" placeholder="例如 /vol1/1000/Photos" autocomplete="off" spellcheck="false"/></div><small>从「飞牛文件管理 → 文件夹详情 → 原始路径」复制，须使用内部存储路径。</small></label>
+<div class="field"><span id="destination-label">归档目标目录 <em>必选</em></span>
+<input id="destination" type="hidden"/>
+<div class="destination-choice" role="group" aria-labelledby="destination-label">
+<span class="folder-symbol" aria-hidden="true">▣</span>
+<div class="destination-summary"><strong id="destination-name">尚未选择归档文件夹</strong><small id="destination-path">在飞牛目录中逐层选择，无需填写路径</small></div>
+<button type="button" id="choose-destination" class="secondary folder-button" disabled>正在连接…</button>
+</div>
+<small>选择 NAS 内部文件夹并确认授权，完成后点击「保存配置」。</small>
+<button type="button" id="refresh-selection" class="selection-refresh" hidden>已在弹窗完成选择？刷新选择结果</button>
+</div>
 <div class="field"><span>分类方式</span><select id="folder-mode"><option value="date_type">年份 / 日期 / RAW・JPG・VIDEO・OTHER</option><option value="date_flat">年份 / 日期（混合存放）</option></select></div>
 <div class="field-row"><label class="field"><span>扫描间隔（秒）</span><input id="interval" type="number" min="5" max="3600"/></label><label class="field"><span>文件稳定等待（秒）</span><input id="settle" type="number" min="5" max="3600"/></label></div>
 <label class="field"><span>日期显示时区</span><input id="timezone" placeholder="Asia/Shanghai"/></label>

@@ -1,6 +1,7 @@
 """Regression checks against a real fnpack output, including corrupt packages."""
 import importlib.util
 import io
+import json
 from pathlib import Path
 import sys
 import tarfile
@@ -26,7 +27,8 @@ def mutate(destination, change):
 
 class PackageRegression(unittest.TestCase):
     def test_official_output(self):
-        self.assertEqual(audit.inspect(PACKAGE)['version'], '0.1.1')
+        version=json.loads((audit.ROOT / 'package.json').read_text())['version']
+        self.assertEqual(audit.inspect(PACKAGE)['version'], version)
 
     def reject_mutation(self, change, message):
         with tempfile.TemporaryDirectory() as tmp:

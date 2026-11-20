@@ -151,7 +151,11 @@ async function bodyJSON(req) {
 const files = {
   '/': ['index.html','text/html; charset=utf-8'],
   '/app.js':['app.js','text/javascript; charset=utf-8'],
-  '/styles.css':['styles.css','text/css; charset=utf-8']
+  '/styles.css':['styles.css','text/css; charset=utf-8'],
+  '/directory-picker.mjs':['directory-picker.mjs','text/javascript; charset=utf-8'],
+  '/vendor/trim-web-app.mjs':['vendor/trim-web-app.mjs','text/javascript; charset=utf-8'],
+  '/folder-callback.html':['folder-callback.html','text/html; charset=utf-8'],
+  '/folder-callback.mjs':['folder-callback.mjs','text/javascript; charset=utf-8']
 };
 
 async function handle(req,res) {
@@ -181,6 +185,11 @@ async function handle(req,res) {
   if (req.method==='POST') {
     if (req.headers['x-dit-request'] !== '1') {json(res,{error:'缺少请求标识'},403);return;}
     try {
+      if (tail==='/api/destination/check') {
+        const input=await bodyJSON(req);
+        const destination=authorizedDestination(input?.destination);
+        json(res,{destination});return;
+      }
       if (tail==='/api/settings') {
         const next=validateSettings(await bodyJSON(req));
         saveConfig(next);

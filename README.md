@@ -1,6 +1,6 @@
 # 飞牛 DIT (fn-dit)
 
-**fnOS 原生照片 / 视频自动归档应用（测试版 v0.1.1）**
+**fnOS 原生照片 / 视频自动归档应用（测试版 v0.1.2）**
 
 本项目用于家庭摄影爱好者：在飞牛 NAS 上定期识别已挂载的 USB 读卡器和 U 盘，将照片、视频按拍摄时间分类导入指定目录，通过 SHA-256 内容哈希去重和复制后校验确保文件完整。
 
@@ -8,10 +8,10 @@
 
 ## 功能状态
 
-| 功能 | v0.1.1 |
+| 功能 | v0.1.2 |
 | --- | --- |
 | 定时发现已挂载 USB / SD 存储及 DCIM 目录 | 已实现，待 fnOS 实机验证 |
-| 自定义目标目录与额外来源路径 | 已实现，需授予应用读取/写入权限 |
+| 原生弹窗选择目标目录与额外来源路径 | 已实现，需授予应用读取/写入权限 |
 | 支持 JPG/JPEG、RAF、HEIC、DNG、PNG、TIF、MOV、MP4、M4V、AVI | 已实现，元数据解析覆盖范围依赖格式和 ExifTool |
 | 按拍摄日期归档 | 已实现 |
 | SHA-256 文件内容去重 | 已实现 |
@@ -41,8 +41,8 @@ Photos/
 1. 在 Linux 开发环境准备 Node.js 22+、Python 3.12+ 及官方 `fnpack` 1.3.3，或直接下载成功的 GitHub Actions 构建产物。
 2. 执行 `npm test`，通过后运行 `bash scripts/build-test-fpk.sh` 使用官方 fnpack 构建。
 3. 在飞牛应用中心手动安装生成的 FPK，确认 `Node.js v22` 依赖与权限。
-4. 在飞牛文件管理创建目标目录，给应用授权。
-5. 打开应用，设置 NAS 内部目标路径（例如 `/vol1/1000/Photos`，以设备实际路径为准），先**手动扫描测试**。
+4. 在应用中点击「选择文件夹」，逐层点选 NAS 内部目录并确认授权。
+5. 选好归档文件夹后点击「保存配置」，先**手动扫描测试**。
 6. 校验导入结果后，再开启自动导入。
 
 > 随项目提供的试装 FPK 是实验性包体，仅用于少量测试数据；不建议当成正式发行版使用。
@@ -60,9 +60,9 @@ DIT_DEV=1 DIT_DATA_DIR=/tmp/fn-dit-test node app/server.js
 
 ## 构建产物
 
-[GitHub Actions](https://github.com/hao93/fn-dit/actions) 的成功运行提供 `fn-dit-0.1.1-unsigned-test` ZIP，其中包含 FPK、SHA-256 和审计报告。图标 PNG 已提交；无需构建时安装图片依赖。安装包不是 APK，下载后先解压 ZIP。
+[GitHub Actions](https://github.com/hao93/fn-dit/actions) 的成功运行提供 `fn-dit-0.1.2-unsigned-test` ZIP，其中包含 FPK、SHA-256 和审计报告。图标 PNG 已提交；无需构建时安装图片依赖。安装包不是 APK，下载后先解压 ZIP。
 
-系统要求：fnOS 1.1.3100+、Node.js v22。用户的 1.2.1010 满足声明的最低要求，但尚未实机验收。详见 [打包修复记录](docs/PACKAGING.md)。
+系统要求：fnOS 1.2.0401+、Node.js v22。用户的 1.2.1010 满足声明的最低要求，但尚未实机验收。详见 [打包修复记录](docs/PACKAGING.md)。
 
 ## 设计与限制
 

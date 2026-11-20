@@ -38,9 +38,9 @@ with tempfile.TemporaryDirectory(prefix='fn-dit-smoke-') as tmp:
         result = subprocess.run([str(main), action], env=env, timeout=25)
         assert result.returncode == expected, (action, result.returncode, (state / 'service.log').read_text() if state.exists() else '')
 
-    def request(route, headers=None):
+    def request(route, headers=None, method='GET', body=None):
         connection = UnixHTTP('localhost')
-        connection.request('GET', '/app/fn-dit/' + route, headers=headers or {})
+        connection.request(method, '/app/fn-dit/' + route, body=body, headers=headers or {})
         response = connection.getresponse()
         data = response.read()
         code = response.status
@@ -57,7 +57,14 @@ with tempfile.TemporaryDirectory(prefix='fn-dit-smoke-') as tmp:
         assert request('api/status')[0] == 403
         code, data = request('api/status', {'X-Trim-Isadmin': 'true'})
         assert code == 200 and json.loads(data)['config']['enabled'] is False
-        assert request('', {'X-Trim-Isadmin': 'true'})[0] == 200
+        admin={'X-Trim-Isadmin': 'true'}
+        code, page=request('', admin)
+        assert code == 200 and b'id="choose-destination"' in page and b'id="destination" type="hidden"' in page
+        for asset in ('directory-picker.mjs','vendor/trim-web-app.mjs','folder-callback.html','folder-callback.mjs'):
+            assert request(asset,admin)[0] == 200, asset
+        payload=json.dumps({'destination':'/etc'})
+        assert request('api/destination/check',admin,'POST',payload)[0] == 403
+        assert request('api/destination/check',{**admin,'X-Dit-Request':'1'},'POST',payload)[0] == 400
     finally:
         ctl('stop')
     ctl('status', 3)
