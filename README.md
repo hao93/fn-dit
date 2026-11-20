@@ -1,6 +1,6 @@
 # 飞牛 DIT (fn-dit)
 
-**fnOS 原生照片 / 视频自动归档应用（测试版 v0.1.3）**
+**fnOS 原生照片 / 视频自动归档应用（测试版 v0.1.4）**
 
 本项目用于家庭摄影爱好者：在飞牛 NAS 上定期识别已挂载的 USB 读卡器和 U 盘，将照片、视频按拍摄时间分类导入指定目录，通过 SHA-256 内容哈希去重和复制后校验确保文件完整。
 
@@ -8,7 +8,7 @@
 
 ## 功能状态
 
-| 功能 | v0.1.3 |
+| 功能 | v0.1.4 |
 | --- | --- |
 | 定时发现已挂载 USB / SD 存储及 DCIM 目录 | 已实现，待 fnOS 实机验证 |
 | 原生弹窗选择目标目录与额外来源路径 | 已实现，需授予应用读取/写入权限 |
@@ -60,7 +60,7 @@ DIT_DEV=1 DIT_DATA_DIR=/tmp/fn-dit-test node app/server.js
 
 ## 构建产物
 
-[GitHub Actions](https://github.com/hao93/fn-dit/actions) 的成功运行提供 `fn-dit-0.1.3-unsigned-test` ZIP，其中包含 FPK、SHA-256 和审计报告。图标 PNG 已提交；无需构建时安装图片依赖。安装包不是 APK，下载后先解压 ZIP。
+[GitHub Actions](https://github.com/hao93/fn-dit/actions) 的成功运行提供 `fn-dit-0.1.4-unsigned-test` ZIP，其中包含 FPK、SHA-256 和审计报告。图标 PNG 已提交；无需构建时安装图片依赖。安装包不是 APK，下载后先解压 ZIP。
 
 系统要求：fnOS 1.2.0401+、Node.js v22。用户的 1.2.1010 满足声明的最低要求，但尚未实机验收。详见 [打包修复记录](docs/PACKAGING.md)。
 

@@ -67,12 +67,12 @@
     el('count-duplicate').textContent=s.lastSummary.duplicate;
     el('count-pending').textContent=s.lastSummary.pending;
     el('count-failed').textContent=s.lastSummary.failed;
-    el('status-label').textContent=s.busy?'正在导入':result.config.enabled?'自动导入已开启':'自动导入未开启';
-    el('pill').textContent=s.busy?'正在处理':s.lastError?'执行异常':'待机';
+    el('status-label').textContent=s.busy?'正在检查与导入':s.phase==='waiting'?'等待文件稳定':result.config.enabled?'自动导入已开启':'自动导入未开启';
+    el('pill').textContent=s.busy?'正在处理':s.lastError?'执行异常':s.phase==='waiting'?'等待稳定':'待机';
     el('pill').className='pill'+(s.busy?' running':'');
     el('progress').className='progress-inner'+(s.busy?' running':'');
     el('current').textContent=s.current||s.lastError||'暂无任务';
-    el('last-run').textContent=s.lastRun?new Date(s.lastRun).toLocaleString('zh-CN'):'尚未扫描';
+    el('last-run').textContent=s.lastRun?new Date(s.lastRun).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hourCycle:'h23'}):'尚未扫描';
     showSources(s.devices||[]);
     el('device-message').textContent=s.deviceMessage||'';
     const logs=el('logs');logs.replaceChildren();

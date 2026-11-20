@@ -57,6 +57,7 @@ with tempfile.TemporaryDirectory(prefix='fn-dit-smoke-') as tmp:
         assert request('api/status')[0] == 403
         code, data = request('api/status', {'X-Trim-Isadmin': 'true'})
         assert code == 200 and json.loads(data)['config']['enabled'] is False
+        assert any('UTC+8' in line for line in json.loads(data)['logs']), 'runtime logs must use East Asia time'
         admin={'X-Trim-Isadmin': 'true'}
         code, page=request('', admin)
         assert code == 200 and b'id="choose-destination"' in page and b'id="destination" type="hidden"' in page

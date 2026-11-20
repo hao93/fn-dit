@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const {eligible,categoryFor,photographedDate} = require('./metadata');
+const {FileStability,signature}=require('./stability');
 
 const stat = (p) => fs.statSync(p);
 const sleep = (ms) => new Promise(r=>setTimeout(r,ms));
@@ -30,7 +31,7 @@ async function copyVerified(source, target, expectedHash) {
     });
     const actual = await sha256(tmp);
     if (actual !== expectedHash) throw new Error('源文件与目标临时文件 SHA-256 不一致（可能仍在写入或介质故障）');
-    const fd = fs.openSync(tmp, 'r');
+    const fd = fs.openSync(tmp, 'r+');
     try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     fs.linkSync(tmp, target);
     try { fs.unlinkSync(tmp); } catch { /* already committed */ }
@@ -39,11 +40,12 @@ async function copyVerified(source, target, expectedHash) {
 }
 
 class Importer {
-  constructor(dataDir, log=()=>{}) {
+  constructor(dataDir, log=()=>{}, options={}) {
     this.dataDir = dataDir;
     this.indexFile = path.join(dataDir, 'index.jsonl');
     this.byHash = new Map();
     this.log = log;
+    this.stability=new FileStability(options.now);
     fs.mkdirSync(dataDir,{recursive:true});
     try {
       for (const line of fs.readFileSync(this.indexFile,'utf8').split('\n')) {
@@ -75,10 +77,14 @@ class Importer {
   async importFile(source, config) {
     const before = stat(source);
     if (!before.isFile() || before.size === 0) return {kind:'ignored'};
-    if ((Date.now() - before.mtimeMs) < config.settleSeconds*1000) return {kind:'pending'};
+    const observation=this.stability.observe(source,before,config.settleSeconds);
+    if(!observation.stable) return {kind:'pending',...observation};
     const hash = await sha256(source);
     const after = stat(source);
-    if (before.size !== after.size || before.mtimeMs !== after.mtimeMs) return {kind:'pending'};
+    if (signature(before)!==signature(after)) {
+      this.stability.reset(source,after);
+      return {kind:'pending',reason:'校验期间文件发生变化',remainingSeconds:config.settleSeconds};
+    }
     const previous = await this.duplicateTarget(hash);
     if (previous) return {kind:'duplicate',target:previous};
     const date = photographedDate(source, after, config.timezone);
@@ -114,6 +120,8 @@ class Importer {
   async scanSource(root, config, update=()=>{}) {
     let imported=0,duplicate=0,pending=0,failed=0;
     const dcim = root.dcim;
+    const seen=new Set();
+    let pendingExample='';
     const walk = async (folder, depth=0) => {
       if (depth > 12) return;
       let entries;
@@ -124,11 +132,15 @@ class Importer {
         if (entry.isSymbolicLink()) continue;
         if (entry.isDirectory()) { await walk(file,depth+1); continue; }
         if (!entry.isFile() || !eligible(file)) continue;
+        seen.add(file);
         try {
           const r = await this.importFile(file,config);
           if (r.kind==='imported') imported++;
           if (r.kind==='duplicate') duplicate++;
-          if (r.kind==='pending') pending++;
+          if (r.kind==='pending') {
+            pending++;
+            if(!pendingExample) pendingExample=`${entry.name}：${r.reason}，还需观察约 ${r.remainingSeconds} 秒`;
+          }
         } catch (error) {failed++; this.log(`导入失败 ${file}: ${error.message}`);}
         update({imported,duplicate,pending,failed,current:entry.name});
         await sleep(0);
@@ -136,6 +148,8 @@ class Importer {
     };
     this.log(`开始扫描 ${root.path}`);
     await walk(dcim);
+    this.stability.prune(dcim,seen);
+    if(pendingExample) this.log(`等待文件稳定：${pendingExample}。将按实际文件变化判断，不受相机时间领先影响。`);
     this.log(`扫描完成 ${root.path}: 新增 ${imported}，重复 ${duplicate}，待稳定 ${pending}，失败 ${failed}`);
     return {imported,duplicate,pending,failed};
   }

@@ -14,7 +14,7 @@ function fixture() {
   const source=path.join(dir,'source','DCIM','100_FUJI');
   const target=path.join(dir,'library');
   fs.mkdirSync(source,{recursive:true});fs.mkdirSync(target);
-  return {dir,source,target,cleanup:()=>fs.rmSync(dir,{recursive:true,force:true})};
+  return {dir,source,target,clock:0,cleanup:()=>fs.rmSync(dir,{recursive:true,force:true})};
 }
 const cfg=(f)=>({destination:f.target,settleSeconds:5,timezone:'Asia/Shanghai',folderMode:'date_type'});
 function agedWrite(file,content) {fs.writeFileSync(file,content);const t=new Date('2026-11-20T00:00:00Z');fs.utimesSync(file,t,t);}
@@ -57,13 +57,17 @@ test('import retains RAF/JPG, duplicate does not copy, index survives restart',a
   const f=fixture();t.after(f.cleanup);
   agedWrite(path.join(f.source,'DSCF1234.RAF'),'raw content');
   agedWrite(path.join(f.source,'DSCF1234.JPG'),'jpg content');
-  const importer=new Importer(path.join(f.dir,'state'));
+  const importer=new Importer(path.join(f.dir,'state'),()=>{},{now:()=>f.clock});
   const root={path:path.dirname(path.dirname(f.source)),dcim:path.dirname(f.source)};
+  assert.equal((await importer.scanSource(root,cfg(f))).pending,2);
+  f.clock+=6000;
   const one=await importer.scanSource(root,cfg(f));
   assert.deepEqual(one,{imported:2,duplicate:0,pending:0,failed:0});
   assert.equal(fs.readFileSync(path.join(f.target,'2026','2026-11-20','RAW','DSCF1234.RAF'),'utf8'),'raw content');
   assert.equal(fs.readFileSync(path.join(f.target,'2026','2026-11-20','JPG','DSCF1234.JPG'),'utf8'),'jpg content');
-  const restarted=new Importer(path.join(f.dir,'state'));
+  const restarted=new Importer(path.join(f.dir,'state'),()=>{},{now:()=>f.clock});
+  assert.equal((await restarted.scanSource(root,cfg(f))).pending,2);
+  f.clock+=6000;
   const two=await restarted.scanSource(root,cfg(f));
   assert.deepEqual(two,{imported:0,duplicate:2,pending:0,failed:0});
 });
@@ -72,9 +76,13 @@ test('same name with different bytes never overwrites original',async(t)=>{
   const f=fixture();t.after(f.cleanup);
   const source=path.join(f.source,'DSCF0001.JPG');
   agedWrite(source,'original');
-  const importer=new Importer(path.join(f.dir,'state'));
+  const importer=new Importer(path.join(f.dir,'state'),()=>{},{now:()=>f.clock});
+  assert.equal((await importer.importFile(source,cfg(f))).kind,'pending');
+  f.clock+=6000;
   const first=await importer.importFile(source,cfg(f));
   agedWrite(source,'new but same basename');
+  assert.equal((await importer.importFile(source,cfg(f))).kind,'pending');
+  f.clock+=6000;
   const second=await importer.importFile(source,cfg(f));
   assert.equal(first.kind,'imported');assert.equal(second.kind,'imported');
   assert.notEqual(first.target,second.target);
@@ -91,4 +99,19 @@ test('unsettled source is deferred without creating a target',async(t)=>{
   const result=await importer.importFile(source,cfg(f));
   assert.equal(result.kind,'pending');
   assert.equal(fs.readdirSync(f.target).length,0);
+});
+
+test('future-dated camera file imports after real observation, without changing source time',async t=>{
+  const f=fixture();t.after(f.cleanup);
+  const source=path.join(f.source,'FUTURE.JPG');
+  fs.writeFileSync(source,'camera clock is ahead');
+  const future=new Date(Date.now()+12*60*60*1000);fs.utimesSync(source,future,future);
+  const original=fs.statSync(source).mtimeMs;
+  const importer=new Importer(path.join(f.dir,'state'),()=>{},{now:()=>f.clock});
+  assert.equal((await importer.importFile(source,cfg(f))).kind,'pending');
+  f.clock+=6000;
+  const result=await importer.importFile(source,cfg(f));
+  assert.equal(result.kind,'imported');
+  assert.equal(fs.readFileSync(result.target,'utf8'),'camera clock is ahead');
+  assert.equal(fs.statSync(source).mtimeMs,original);
 });

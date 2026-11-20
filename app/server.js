@@ -5,6 +5,7 @@ const path = require('node:path');
 const http = require('node:http');
 const {inspectSources,externalPath,checkSourceRoot} = require('./lib/discovery');
 const {Importer} = require('./lib/importer');
+const {east8Time}=require('./lib/time');
 
 const BASE = '/app/fn-dit';
 const DEV = process.env.DIT_DEV === '1';
@@ -29,10 +30,10 @@ let config;
 try { config = {...defaults,...JSON.parse(fs.readFileSync(configFile,'utf8'))}; }
 catch { config={...defaults}; }
 
-const status = {busy:false,startedAt:null,lastRun:null,lastError:'',lastSummary:{imported:0,duplicate:0,pending:0,failed:0},current:'',devices:[],deviceMessage:''};
+const status = {busy:false,phase:'idle',startedAt:null,lastRun:null,lastError:'',lastSummary:{imported:0,duplicate:0,pending:0,failed:0},current:'',devices:[],deviceMessage:''};
 const recentLogs=[];
 function log(message) {
-  const line = `${new Date().toISOString()} ${message}`;
+  const line = `${east8Time()} ${message}`;
   recentLogs.push(line);
   if (recentLogs.length>100) recentLogs.shift();
   try { fs.appendFileSync(logFile,line+'\n',{mode:0o600}); }
@@ -102,6 +103,15 @@ function saveConfig(next) {
   fs.renameSync(temp,configFile);
   if (config.destination !== next.destination || config.folderMode !== next.folderMode) completedSources.clear();
   config=next;
+  if(!status.busy) Object.assign(status,runState(status.lastSummary,status.lastError,config.enabled));
+}
+
+function runState(summary,error,enabled) {
+  return {
+    phase:error?'error':summary.pending>0?'waiting':'idle',
+    current:summary.pending>0&&!error?
+      `${summary.pending} 个文件等待稳定，${enabled?'下一轮自动重试':'请稍后再次扫描或开启自动导入'}`:''
+  };
 }
 
 async function scan(force=false) {
@@ -111,6 +121,7 @@ async function scan(force=false) {
   if (!force) lastAutoScan=Date.now();
   const runConfig={...config,sourceRoots:[...config.sourceRoots]};
   status.busy=true;
+  status.phase='scanning';
   status.startedAt=new Date().toISOString();
   status.lastError='';
   status.current='';
@@ -136,7 +147,10 @@ async function scan(force=false) {
       if (stats.pending === 0 && stats.failed === 0) completedSources.add(root.path);
     }
   } catch (error) {status.lastError=error.message;log(`扫描异常：${error.message}`);}
-  finally {status.lastSummary=summary;status.lastRun=new Date().toISOString();status.busy=false;status.current='';}
+  finally {
+    status.lastSummary=summary;status.lastRun=new Date().toISOString();status.busy=false;
+    Object.assign(status,runState(summary,status.lastError,config.enabled));
+  }
 }
 
 function json(res,obj,code=200) {
@@ -251,4 +265,4 @@ function start() {
   for (const sig of ['SIGTERM','SIGINT']) process.on(sig,()=>{server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),15000).unref();});
 }
 if (require.main===module) start();
-module.exports = {validateSettings,legalDestination,start};
+module.exports = {validateSettings,legalDestination,start,runState};
