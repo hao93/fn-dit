@@ -1,0 +1,5 @@
+{
+  "defaults": { "run-as": "package" },
+  "username": "fn_dit",
+  "groupname": "fn_dit"
+}
