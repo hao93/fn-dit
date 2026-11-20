@@ -1,6 +1,6 @@
 {
   "name": "fn-dit",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "fnOS native photo/video ingestion",
   "scripts": {

@@ -24,7 +24,10 @@ python3 scripts/inspect-fpk.py --stage "$STAGE_DIR"
 VERSION="$(node -p 'require("./package.json").version')"
 PACK_ARGS=()
 SUFFIX=''
-if [[ "${FPK_DEBUG_UNSIGNED:-0}" == 1 ]]; then
+if [[ "${FPK_UNSIGNED:-0}" == 1 ]]; then
+  PACK_ARGS+=(--nosign)
+  SUFFIX='-unsigned'
+elif [[ "${FPK_DEBUG_UNSIGNED:-0}" == 1 ]]; then
   PACK_ARGS+=(--nosign)
   SUFFIX='-unsigned-test'
 fi

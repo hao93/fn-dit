@@ -1,47 +1,46 @@
-# 飞牛 fnOS 部署说明
+# Linux 源码构建与部署
 
-当前为 **v0.1.5 试装版**。使用官方 fnpack 1.3.3 在 Linux 构建并检查 FPK；未完成 fnOS 实机验收。
+普通用户优先使用 [Releases](https://github.com/hao93/fn-dit/releases/latest) 的 FPK；安装步骤见 [快速上手](QUICKSTART.md)。
 
-## 安装试装包
+## 构建环境
 
-1. 从仓库 Actions 中最近一次成功的 Tests 运行下载 `fn-dit-0.1.5-unsigned-test` 构建产物，解压 ZIP，选择其中的 `.fpk`。不要上传 ZIP 或 APK。
-2. 需要 fnOS **1.2.0401 或以上**，以及应用中心的 **Node.js v22**。用户报告的 1.2.1010 满足声明的系统版本要求，但尚未实测。
-3. 应用中心 → 手动安装 → 上传 FPK。此包使用官方 `--nosign`，仅供本地调试，未签名，不是正式 Release。如果设备策略拒绝未签名包，需要飞牛开发者证书构建；不要关闭系统安全检查来绕过。
-4. 使用管理员账户点击「选择文件夹」，在飞牛原生弹窗中逐层选择 NAS 内部目录并确认授权。飞牛 App 客户端需要 1.34.0 或以上。外接设备区域新增「选择存储卡」，可在系统外接存储弹窗中选择并授权 SD 卡根目录或 DCIM。
-5. 确认页面显示选中的文件夹后，点击「保存配置」。目标目录无需输入或复制路径。旧版已保存的目录会继续保留；点击「更换文件夹」可重新选择。存储卡选择完成后来源自动保存；目标目录配置仍需点击「保存配置」。
-6. 自动导入默认关闭。先用少量测试卡文件手动扫描，核对内容、日期、同名冲突、重复导入和拔插后重扫，再决定开启自动导入。
-
-## Linux 源码构建
-
-需要 Node.js 22+、Python 3.12+、bash、官方 fnpack 1.3.3。图标 PNG 已提交，无需构建时下载 Python 图片依赖。
+- Linux，Node.js 22+，Python 3.12+，bash 与常用文件工具。
+- 官方 fnpack 1.3.3。下载地址与固定 SHA-256 记录在工作流中。
+- PNG 图标已提交，构建不依赖 Pillow；只有重新渲染图标时需要 Pillow。
 
 ```bash
-# 官方工具下载地址与本次核验 SHA-256 见 .github/workflows/tests.yml
-export FNPACK=/absolute/path/to/fnpack
-bash scripts/build-test-fpk.sh
-# 产物：dist/fn-dit-0.1.5-unsigned-test.fpk、.sha256、.audit.json
-python3 tests/fpk_test.py dist/fn-dit-0.1.5-unsigned-test.fpk
-python3 tests/lifecycle-smoke.py dist/fn-dit-0.1.5-unsigned-test.fpk
+curl --fail --location https://static2.fnnas.com/fnpack/fnpack-1.3.3-linux-amd64 -o fnpack
+printf '%s  %s\n' '1464d6aa9b995ebecb263c5ec60f0f4a7cbf45e0ce887836755fd65abd647d1e' fnpack | sha256sum --check
+chmod 755 fnpack
+export FNPACK="$(pwd)/fnpack"
 ```
 
-正式签名构建：在构建主机按官方 `fnpack cert import --help` 导入自己的开发者证书，然后执行 `bash scripts/build-fpk.sh`。不要把私钥、证书或密码提交到仓库。本项目不会生成或伪造开发者身份。
+不要把下载的二进制或开发者私钥提交到仓库。Windows 本次测试中遇到同步错误/执行位问题，本项目选择 Linux 作为交付构建环境。
 
-构建必须使用 Linux。Windows fnpack 1.3.3 在本次环境构建时报文件同步 Access is denied；1.2.3 虽能输出 FPK，但脚本模式为 0666，不能作为本项目安装产物交付。不要重新压缩已生成的 FPK。
+## 未签名手动安装发行包
 
-## 安装仍失败时
+```bash
+FPK_UNSIGNED=1 bash scripts/build-fpk.sh
+python3 tests/fpk_test.py dist/fn-dit-0.1.6-unsigned.fpk
+python3 tests/lifecycle-smoke.py dist/fn-dit-0.1.6-unsigned.fpk
+```
 
-“应用包不符合系统要求”是通用错误，仅凭截图无法断定系统内的具体校验分支。当前修复移除了手工打包流程，并校验官方包的结构、权限、图标、配置与 app.tgz MD5；这不能替代应用中心实际安装。
+输出：FPK、对应 `.sha256` 和 `.audit.json`。仍使用官方 `fnpack build --nosign`，没有签名或商店认证，发行说明必须保留此状态。
 
-若新包仍被拒绝，记录完整 fnOS 版本、所选 FPK 文件名、文件 SHA-256 和应用中心/安装日志，重点检查未签名包策略及 Node.js 依赖。设备有 SSH 且管理员自愿使用命令行时，可参考官方 `appcenter-cli install-fpk <完整FPK路径>`；本任务未连接 NAS 或执行安装。
+仅用于开发的命名也保留：`bash scripts/build-test-fpk.sh` 输出 `-unsigned-test.fpk`。两个模式都不能声称是签名包。
 
-启动失败时查看应用数据目录中的 `service.log`。启动脚本会在服务退出或 Socket 未就绪时返回失败，并通过系统临时日志给出错误。
+## 使用真实开发者证书
 
-## 运行限制
+按 `fnpack cert import --help` 在受控构建主机导入自己的证书和私钥，然后运行：
 
-- 统一网关、外接卡挂载结构与 ACL 授权必须在真机核验。
-- 服务以专用包账户运行，默认不暴露 TCP 管理端口，仅允许 NAS 管理员使用。
-- 原卡不删除、不格式化；目标同名不同内容不覆盖。索引和日志存储于 `TRIM_PKGVAR`。
-- 拍摄日期解析不到时回退 mtime；部分 RAW/HEIC/视频格式需要 ExifTool，并应抽样核对。
-- 不提供“亮灯画面”识别功能，不替代独立备份。
+```bash
+bash scripts/build-fpk.sh
+```
 
-依据：[官方 fnpack](https://developer.fnnas.com/docs/cli/fnpack)、[Native 案例](https://developer.fnnas.com/docs/examples/native)、[Manifest](https://developer.fnnas.com/docs/core-concepts/manifest)、[应用权限](https://developer.fnnas.com/docs/core-concepts/privilege)。
+不设置两个 unsigned 环境变量时，脚本调用默认签名构建。不要上传私钥到聊天、仓库或 Release。当前公开 Release 的流程显式为未签名模式；将来切换签名发行需要单独核对证书、构建和验证流程。
+
+## 构建检查
+
+构建在独立临时目录组装完整文件，规范 0755/0644 权限、LF 文本、图标尺寸与入口，并在构建前后审计 manifest、依赖、SDK 哈希、生命周期、源码、app.tgz MD5 和 FPK SHA-256。构建产物不手工重压缩。
+
+安装到设备后仍需核验：依赖启动、目录授权、统一网关、SD 卡读取、真实媒体日期、目标写入及错误恢复。CI 的普通 Linux 服务测试不能代替 fnOS 实机安装。

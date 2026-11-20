@@ -1,34 +1,36 @@
-# 架构与功能
+# 架构与模块
 
 ## 数据流
 
 ```text
-USB / SD 卡 → fnOS 挂载 → 后台扫描发现 DCIM
-    → 列出支持格式文件
-    → 拍摄时间解析（EXIF/视频元数据，必要时回退 mtime）
-    → SHA-256 内容去重
-    → 目标临时复制 → 目标 SHA-256 校验
-    → 正式归档 → 持久索引/日志
-    → 飞牛相册等应用可按目录访问
+飞牛挂载外接存储 → 发现或手动选择授权 → 找到 DCIM
+→ 观察文件稳定 → 读取日期和计算 SHA-256 → 去重
+→ 临时复制 → 目标 SHA-256 校验 → 提交归档及索引
+→ 保存每轮数量和文件日志 → 安排下一次扫描
 ```
 
-## 模块说明
+## 模块
 
-- `app/server.js`：Node.js 后端，配置、状态、日志 API；fnOS 网关集成。
-- `app/lib/discovery.js`：枚举已挂载外部存储及可信来源。
-- `app/lib/metadata.js`：EXIF/QuickTime/文件日期与扩展名分类。
-- `app/lib/importer.js`：复制校验、SHA-256、去重索引与冲突保护。
-- `app/ui/`：fnOS 桌面管理页面。
-- `fnos/`：manifest、生命周期、资源与桌面入口。
-- `scripts/`：官方 fnpack 构建及实验测试打包辅助。
-- `tests/`：数据导入、时间解析、目录权限单元测试。
+| 路径 | 职责 |
+| --- | --- |
+| `app/server.js` | 网关管理员鉴权、配置、状态、扫描与历史接口 |
+| `app/lib/discovery.js` | 外接命名空间、挂载、读取检查及诊断 |
+| `app/lib/stability.js` | 单调时间的文件无变化观察 |
+| `app/lib/importer.js` | 内容哈希、去重索引、复制校验与冲突保护 |
+| `app/lib/metadata.js` | 扩展名分类、JPEG EXIF、QuickTime、日期回退 |
+| `app/lib/schedule.js` | 真实的一次性扫描计划及下次时间 |
+| `app/lib/history.js` | 每轮元数据、数量检查点、日志分页与重启恢复 |
+| `app/lib/time.js` | 东八区运行记录格式化 |
+| `app/ui/` | 设置、设备、工作状态、历史与原生目录弹窗集成 |
+| `fnos/` | manifest、专用包账户、API scope、生命周期和桌面入口 |
+| `scripts/` | 图标渲染、官方构建、包审计和发布资产验证 |
+| `.release/request.json` | 显式版本发布请求 |
+| `.github/workflows/` | 普通检查及公开 Release 工作流 |
 
-## 配置、安全与限制
+## 运行与数据
 
-- 默认关闭自动导入，用户显式指定目标目录。
-- 不自行挂载 USB、不修改 udev、不使用 root、不删除/清空源卡。
-- 归档到 `YYYY/YYYY-MM-DD/{RAW,JPG,VIDEO,OTHER}`。
-- 重复判断使用内容哈希，而非仅文件名；不同内容同名不能覆盖。
-- 扫描以轮询方式运行；依赖 fnOS 挂载能力与应用授权。
-- 尚未做相似照片 AI 聚类、画面灯亮筛选、相机直连。
-- 高可用、海量索引性能与系统升级兼容性还需要实体 NAS 测试。
+Node.js v22 由系统依赖提供，包内不携带架构专用运行时，因此 platform=all。服务通过 fnOS 网关 Unix Socket 访问，不开放生产 TCP 管理端口。目录选择使用官方 SDK 与共享授权 scope，服务以专用包账户运行。
+
+配置、索引、总日志和 history 存储在 TRIM_PKGVAR；媒体写入用户选择的独立目标目录。来源只读，不自行挂载、不调用 root、不删除或格式化卡。
+
+去重依赖持久索引和目标文件内容校验；目标同名不同内容不覆盖。复制校验和索引不是独立备份系统。真实设备文件系统、权限、网关和错误恢复仍需验收。
